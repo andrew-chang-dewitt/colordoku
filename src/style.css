@@ -1,0 +1,98 @@
+:root {
+  --color-group-0: #75eab6;
+  --color-group-1: #47a350;
+  --color-group-2: #77d1fd;
+  --color-group-3: #ae73fb;
+  --color-group-4: #76f014;
+  --color-group-5: #fd5917;
+  --color-group-6: #c6dbae;
+  --color-group-7: #fd4e8b;
+  --color-group-8: #b8e450;
+  --color-group-9: #628df2;
+  --color-group-10: #f7c5f1;
+  --color-group-11: #fe16f4;
+  --color-group-12: #ac85a3;
+  --color-group-13: #89975b;
+  --color-group-14: #f7931e;
+  --color-group-15: #f4d403;
+
+  --color-mark: black;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-group-0: #505f76;
+    --color-group-1: #bb41c5;
+    --color-group-2: #631e62;
+    --color-group-3: #2b72e7;
+    --color-group-4: #1a119b;
+    --color-group-5: #61812e;
+    --color-group-6: #04451b;
+    --color-group-7: #ec102f;
+    --color-group-8: #660616;
+    --color-group-9: #18857f;
+    --color-group-10: #b84529;
+    --color-group-11: #9f6c3b;
+    --color-group-12: #e21c7a;
+    --color-group-13: #4e380b;
+    --color-group-14: #996599;
+    --color-group-15: #7212ff;
+
+    --color-mark: white;
+  }
+}
+
+button.group-0 {
+  background-color: var(--color-group-0);
+}
+button.group-1 {
+  background-color: var(--color-group-1);
+}
+button.group-2 {
+  background-color: var(--color-group-2);
+}
+button.group-3 {
+  background-color: var(--color-group-3);
+}
+button.group-4 {
+  background-color: var(--color-group-4);
+}
+button.group-5 {
+  background-color: var(--color-group-5);
+}
+button.group-6 {
+  background-color: var(--color-group-6);
+}
+button.group-7 {
+  background-color: var(--color-group-7);
+}
+button.group-8 {
+  background-color: var(--color-group-8);
+}
+button.group-9 {
+  background-color: var(--color-group-9);
+}
+button.group-10 {
+  background-color: var(--color-group-10);
+}
+button.group-11 {
+  background-color: var(--color-group-11);
+}
+button.group-12 {
+  background-color: var(--color-group-12);
+}
+button.group-13 {
+  background-color: var(--color-group-13);
+}
+button.group-14 {
+  background-color: var(--color-group-14);
+}
+button.group-15 {
+  background-color: var(--color-group-15);
+}
+
+#app > div {
+  display: grid;
+  grid-template-columns: repeat(4, 3em);
+  gap: 0.2em;
+}
