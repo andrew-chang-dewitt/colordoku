@@ -1,3 +1,4 @@
+import type { Game } from "../game/game";
 import classes from "./cell.module.css";
 
 type State = 0 | 1 | 2; // not marked, eliminated, queen
@@ -9,27 +10,28 @@ function stateToView(state: State): string {
 }
 
 export interface Cell {
-  // id: [number, number];
+  group: number; // maps to colors
   state: State;
   queen: boolean; // true if cell actually has queen
-  group: number; // maps to colors
+  frozen: boolean; // true if had an incorrect queen guess or queen found
 
   html: HTMLElement; // ref to rendered element
   update: () => void;
 }
 
 export function newCell(
-  // id: [number, number],
+  game: Game,
   group: number,
   queen: boolean = false,
 ): Cell {
   const state = 0 as State;
+  const frozen = false;
   const html = renderCell(state, group);
   const cell = {
-    state,
-    // id,
-    queen,
     group,
+    state,
+    queen,
+    frozen,
     html,
 
     update() {
@@ -38,24 +40,31 @@ export function newCell(
   };
 
   function singleClick(_: MouseEvent): void {
-    if (cell.state == 0) {
-      cell.state = 1;
-    } else if (cell.state == 1) {
-      cell.state = 0;
-    }
+    if (!cell.frozen) {
+      if (cell.state == 0) {
+        cell.state = 1;
+      } else if (cell.state == 1) {
+        cell.state = 0;
+      }
 
-    cell.update();
+      cell.update();
+    }
   }
 
   function doubleClick(_: MouseEvent): void {
-    if (cell.queen) {
-      cell.state = 2;
-    } else {
-      cell.state = 1;
-      html.className += ` ${classes.error}`;
-    }
+    if (!cell.frozen) {
+      if (cell.queen) {
+        cell.state = 2;
+        game.incFound();
+      } else {
+        cell.state = 1;
+        html.className += ` ${classes.error}`;
+        game.incGuess();
+      }
 
-    cell.update();
+      cell.frozen = true;
+      cell.update();
+    }
   }
 
   html.addEventListener("click", singleClick);

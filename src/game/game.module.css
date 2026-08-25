@@ -1,0 +1,24 @@
+ul.guesses {
+  display: flex;
+  justify-content: center;
+
+  padding: 0;
+  width: 100%;
+
+  list-style: none;
+}
+ul.guesses > li.unused {
+  display: inline;
+  padding: 0;
+}
+ul.guesses > li::after {
+  color: red;
+  font-weight: bold;
+  font-size: 2em;
+}
+ul.guesses > li.unused::after {
+  content: "○";
+}
+ul.guesses > li.used::after {
+  content: "✕";
+}

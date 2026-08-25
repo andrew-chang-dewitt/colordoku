@@ -1,5 +1,6 @@
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
+import { newGame } from "../game/game";
 
 export interface Board {
   state: Cell[][];
@@ -7,49 +8,51 @@ export interface Board {
 }
 
 export function newBoard(_size: number): Board {
+  let game = newGame(4, 2);
   // start w/ hardcoded 4 x 4 board
   //
-  // 0Q 1. 1. 1.
-  // 2. 1. 2Q 2.
-  // 2. 1Q 2. 3.
-  // 2. 2. 2. 3Q
+  // B. B. BQ B.
+  // AQ B. C. C.
+  // C. B. C. DQ
+  // C. CQ C. D.
   let cells = [
     [
-      newCell(/* [0, 0], */ 0, true),
-      newCell(/* [0, 1], */ 1),
-      newCell(/* [0, 2], */ 1),
-      newCell(/* [0, 3], */ 1),
+      newCell(game, 1),
+      newCell(game, 1),
+      newCell(game, 1, true),
+      newCell(game, 1),
     ],
     [
-      newCell(/* [1, 0], */ 2),
-      newCell(/* [1, 1], */ 1),
-      newCell(/* [1, 2], */ 2, true),
-      newCell(/* [1, 3], */ 2),
+      newCell(game, 0, true),
+      newCell(game, 1),
+      newCell(game, 2),
+      newCell(game, 2),
     ],
     [
-      newCell(/* [2, 0], */ 2),
-      newCell(/* [2, 1], */ 1, true),
-      newCell(/* [2, 2], */ 2),
-      newCell(/* [2, 3], */ 3),
+      newCell(game, 2),
+      newCell(game, 1),
+      newCell(game, 2),
+      newCell(game, 3, true),
     ],
     [
-      newCell(/* [3, 0], */ 2),
-      newCell(/* [3, 1], */ 2),
-      newCell(/* [3, 2], */ 2),
-      newCell(/* [3, 3], */ 3, true),
+      newCell(game, 2),
+      newCell(game, 2, true),
+      newCell(game, 2),
+      newCell(game, 3),
     ],
   ];
-
-  console.log("board cells created");
-  console.dir(cells);
-
-  const html: HTMLDivElement = document.createElement("div");
+  const board: HTMLDivElement = document.createElement("div");
+  board.id = "board";
 
   cells.forEach((row) =>
     row.forEach((cell) => {
-      html.append(cell.html);
+      board.append(cell.html);
     }),
   );
+
+  const html: HTMLDivElement = document.createElement("div");
+  html.append(game.html);
+  html.append(board);
 
   return {
     state: cells,

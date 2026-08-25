@@ -92,7 +92,14 @@ button.group-15 {
 }
 
 #app > div {
+  width: fit-content;
+}
+
+#board {
   display: grid;
   grid-template-columns: repeat(4, 3em);
-  gap: 0.2em;
+  gap: 0.1em;
+  background-color: darkgray;
+  width: fit-content;
+  padding: 0.2em;
 }
