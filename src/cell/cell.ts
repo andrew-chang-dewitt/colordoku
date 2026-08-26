@@ -4,7 +4,10 @@ import classes from "./cell.module.css";
 type State = 0 | 1 | 2; // not marked, eliminated, queen
 
 function stateToView(state: State): string {
-  let views = ["", "X", "Q"];
+  // The queen glyph is a chess-queen symbol, not the letter "Q": it reads as
+  // a game piece rather than plain text and pairs with the .found scale-in
+  // animation/glow in cell.module.css.
+  let views = ["", "X", "♛"];
 
   return views[state];
 }
@@ -55,6 +58,7 @@ export function newCell(
     if (!cell.frozen) {
       if (cell.queen) {
         cell.state = 2;
+        html.className += ` ${classes.found}`;
         game.incFound();
       } else {
         cell.state = 1;

@@ -17,6 +17,12 @@
   --color-group-15: #f4d403;
 
   --color-mark: black;
+  --color-queen: #b8860b;
+  --color-error: #d1002f;
+
+  --color-surface: #ffffff;
+  --color-on-surface: #101010;
+  --color-border: #c8c8c8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,7 +45,64 @@
     --color-group-15: #7212ff;
 
     --color-mark: white;
+    --color-queen: #ffd60a;
+    --color-error: #ff5c7a;
+
+    --color-surface: #1e1e1e;
+    --color-on-surface: #f0f0f0;
+    --color-border: #4a4a4a;
   }
+}
+
+/* The page itself, behind the board/drawer/status text. There is no dedicated
+ * "page" surface token: the app is a single view (no separate chrome layer
+ * behind the drawer), so the same surface/on-surface pair used for the
+ * options drawer works here too. */
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+/* Shared button style for UI chrome (options drawer, status/new-game controls).
+ * Cell buttons are game pieces, not chrome, and stay on their own styling in
+ * cell.module.css. */
+.btn {
+  padding: 0.5em 1.25em;
+  font: inherit;
+  font-size: 1em;
+  border-radius: 0.25em;
+  cursor: pointer;
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn:active {
+  opacity: 0.7;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-primary {
+  color: var(--color-surface);
+  background-color: var(--color-on-surface);
+  border: 1px solid var(--color-on-surface);
+  font-weight: bold;
+}
+
+.btn-secondary {
+  color: var(--color-on-surface);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
 }
 
 button.group-0 {
@@ -93,14 +156,61 @@ button.group-15 {
 
 #app > div {
   width: fit-content;
+  margin-inline: auto;
 }
 
 #board {
-  display: grid;
   /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
-  grid-template-columns: repeat(var(--board-size, 4), var(--cell-size, 3em));
-  gap: 0.1em;
+
+  /* Gap and padding are deliberately *fixed* (rem, not em, and not derived from
+   * --cell-size): they are hairlines whose job is to separate regions, so they
+   * should not shrink to invisibility on a 16x16 phone board nor balloon on a
+   * 4x4 desktop one. Being constants also keeps the fit maths below linear —
+   * a gap that depended on --cell-size would make --cell-size self-referential. */
+  --board-gap: 0.1rem;
+  --board-pad: 0.2rem;
+
+  /* Everything in the grid's width/height that is not cell: the gaps between
+   * tracks plus the board's own padding on both edges. */
+  --board-chrome: calc(
+    var(--board-gap) * (var(--board-size, 4) - 1) + var(--board-pad) * 2
+  );
+
+  /* Room the board is *not* allowed to use. Horizontally: body margins plus a
+   * little slack for a desktop scrollbar. Vertically: the guess pips above the
+   * board and the "New game" button below it, which must stay on screen with
+   * the board (the options drawer is a modal <dialog> and overlays instead). */
+  --page-inset-inline: 1.25rem;
+  --page-inset-block: 9rem;
+
+  /* The largest a cell ever gets; preserves the original 3em look on small
+   * boards / large windows. Below that, whichever axis is tightest wins. */
+  --cell-max: 3rem;
+  /* A floor so a pathologically short/narrow window yields a scrollable board
+   * rather than a sub-pixel one. It is below what any real device asks for
+   * (16x16 on a 375x667 phone lands at ~20px, landscape at ~12.5px), so it
+   * never actually binds in practice — it is only a guard against a degenerate
+   * or even negative computed size. */
+  --cell-min: 0.75rem;
+  --cell-size: max(
+    var(--cell-min),
+    min(
+      var(--cell-max),
+      calc(
+        (100dvw - var(--page-inset-inline) - var(--board-chrome)) /
+          var(--board-size, 4)
+      ),
+      calc(
+        (100dvh - var(--page-inset-block) - var(--board-chrome)) /
+          var(--board-size, 4)
+      )
+    )
+  );
+
+  display: grid;
+  grid-template-columns: repeat(var(--board-size, 4), var(--cell-size));
+  gap: var(--board-gap);
   background-color: darkgray;
   width: fit-content;
-  padding: 0.2em;
+  padding: var(--board-pad);
 }

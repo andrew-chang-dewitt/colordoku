@@ -1,11 +1,66 @@
+:root {
+  --cell-mark-shadow-width: 0.08em;
+  --cell-error-shadow-width: 0.16em;
+  --cell-queen-shadow-width: 0.32em;
+}
+
 .cell {
-  /* Inherits --cell-size from #board so cells stay square at any board size. */
+  /* Inherits --cell-size from #board so cells stay square at any board size:
+   * the column track is that same variable. */
   height: var(--cell-size, 3em);
+  /* Grid items default to min-width/min-height:auto, i.e. their min-content
+   * size — the UA button padding alone would then refuse to shrink below the
+   * track on a 16x16 board and overflow the grid. */
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  /* The glyph ("X"/"Q") tracks the cell but is capped so it does not outgrow
+   * the default text size on a big 4x4 board. */
+  font-size: min(1rem, calc(var(--cell-size, 3em) * 0.55));
+  line-height: 1;
   color: var(--color-mark);
   font-weight: bold;
   border: 0;
 }
 
+/* A correct guess: the queen glyph gets its own color plus an outline (via
+ * layered text-shadow rather than -webkit-text-stroke, which some browsers
+ * still don't support) so it reads clearly against any of the 16 group
+ * background colors, not just the ones --color-mark happens to contrast
+ * with. The scale-in animation is a one-shot "found" beat, not an ongoing
+ * one, so it never distracts during play. */
+.found {
+  color: var(--color-queen);
+  font-size: min(1.75rem, calc(var(--cell-size, 3em) * 0.75));
+  text-shadow:
+    0 0 var(--cell-mark-shadow-width) var(--color-mark),
+    0 0 var(--cell-mark-shadow-width) var(--color-mark),
+    0 0 var(--cell-mark-shadow-width) var(--color-queen);
+  animation: queen-found 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes queen-found {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .found {
+    animation: none;
+  }
+}
+
+/* An incorrect guess. Same outline treatment as .found for the same reason:
+ * legible against any group color, not just ones --color-mark contrasts with. */
 .error {
-  color: red;
+  color: var(--color-error);
+  text-shadow:
+    0 0 var(--cell-error-shadow-width) var(--color-mark),
+    0 0 var(--cell-error-shadow-width) var(--color-mark);
 }
