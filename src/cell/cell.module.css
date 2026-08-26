@@ -1,5 +1,6 @@
 .cell {
-  height: 3em;
+  /* Inherits --cell-size from #board so cells stay square at any board size. */
+  height: var(--cell-size, 3em);
   color: var(--color-mark);
   font-weight: bold;
   border: 0;

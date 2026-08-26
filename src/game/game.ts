@@ -13,7 +13,7 @@ export interface Game {
   update: () => void;
 }
 
-export function newGame(size, max): Game {
+export function newGame(size: number, max: number): Game {
   const html = renderGame(max);
 
   return {
@@ -26,7 +26,7 @@ export function newGame(size, max): Game {
     incFound() {
       this.queensFound++;
       if (this.queensFound == this.size) {
-        this.state == 1;
+        this.state = 1;
       }
     },
 
@@ -34,13 +34,13 @@ export function newGame(size, max): Game {
       this.guessesLeft--;
       this.update();
       if (this.guessesLeft == 0) {
-        this.state == 2;
+        this.state = 2;
       }
     },
 
     update() {
       for (let i = this.guessesLeft; i < max; i++) {
-        this.html.childNodes[i].className = classes.used;
+        this.html.children[i].className = classes.used;
       }
     },
   };

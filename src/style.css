@@ -97,7 +97,8 @@ button.group-15 {
 
 #board {
   display: grid;
-  grid-template-columns: repeat(4, 3em);
+  /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
+  grid-template-columns: repeat(var(--board-size, 4), var(--cell-size, 3em));
   gap: 0.1em;
   background-color: darkgray;
   width: fit-content;

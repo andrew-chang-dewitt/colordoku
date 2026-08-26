@@ -9,6 +9,15 @@ to play the game, clone this repo, then run `npm run dev` in your terminal from
 the repo root. if you navigate to the url prompted in your terminal (usually
 `https://localhost:5173`) you'll see a game board generated.
 
+building requires a rust toolchain with the `wasm32-unknown-unknown` target plus
+[`wasm-pack`](https://rustwasm.github.io/wasm-pack/), since the board generator
+compiles to wasm. `npm run dev`, `npm run build`, and `npm test` all build it for
+you first.
+
+pass `?size=` to pick a board size (1, or 4 through 16 — the stylesheet defines
+16 region colours) and `?seed=` to reproduce a specific board, e.g.
+`http://localhost:5173/?size=8&seed=42`.
+
 ### rules
 
 given a square board containing a grid of `n` cells on each size partitioned
@@ -124,16 +133,26 @@ x Q x x
 ## the implementation
 
 DOM manipulation & game state logic are written in typescript with the view
-implemented in html & css, all built with vite. board generation is being
-implemented as a WASM module in rust to leverage faster computation when
-building a board w/ a guarantee of exactly one possible solution.
+implemented in html & css, all built with vite. board generation is a WASM
+module written in rust (`generator/`), which builds a board with a guarantee of
+exactly one possible solution far faster than the same algorithm in a scripting
+language.
+
+generation runs in a web worker, so the page stays responsive while it works. it
+needs to: the cost grows steeply with board size. measured in the browser, a
+13x13 board takes about 1.4s, a 14x14 anywhere from 3s to ~40s depending on the
+seed, and 15x15 and 16x16 can take minutes. boards of 12 and under are effectively
+instant. sizes at or above 14 get an elapsed timer and a cancel button.
 
 ### TODO
 
 - [ ] UI to start a new game
 - [ ] UI indicating a game was won or lost
-- [ ] board generation module
+- [x] board generation module
 - [ ] UI for giving a board size & generating a board to match
+- [ ] make the largest boards practical — generation discards a whole layout
+      whenever refinement gets stuck, and the restart count climbs sharply past
+      13 (a 14x14 needed 282 restarts in one sample)
 - [ ] a difficulty modifier that can influence board generation & max number of
       incorrect guesses allowed
 - [ ] long term score tracking (using localstate)

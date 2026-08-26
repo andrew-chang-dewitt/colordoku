@@ -4,12 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "wasm": "wasm-pack build generator --target web --out-dir ../src/generator/pkg",
+    "dev": "npm run wasm && vite",
+    "build": "npm run wasm && tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest --typecheck"
+    "test": "npm run wasm && vitest",
+    "test:rust": "cargo test --manifest-path generator/Cargo.toml",
+    "test:rust:release": "cargo test --manifest-path generator/Cargo.toml --release"
   },
   "devDependencies": {
+    "happy-dom": "^20.11.6",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"

@@ -1,48 +1,34 @@
 import type { Cell } from "../cell/cell";
-import { newCell } from "../cell/cell";
+import type { Game } from "../game/game";
 import { newGame } from "../game/game";
+import { generateCells } from "./generate";
 
 export interface Board {
   state: Cell[][];
+  game: Game;
   html: HTMLDivElement;
 }
 
-export function newBoard(_size: number): Board {
-  let game = newGame(4, 2);
-  // start w/ hardcoded 4 x 4 board
-  //
-  // B. B. BQ B.
-  // AQ B. C. C.
-  // C. B. C. DQ
-  // C. CQ C. D.
-  let cells = [
-    [
-      newCell(game, 1),
-      newCell(game, 1),
-      newCell(game, 1, true),
-      newCell(game, 1),
-    ],
-    [
-      newCell(game, 0, true),
-      newCell(game, 1),
-      newCell(game, 2),
-      newCell(game, 2),
-    ],
-    [
-      newCell(game, 2),
-      newCell(game, 1),
-      newCell(game, 2),
-      newCell(game, 3, true),
-    ],
-    [
-      newCell(game, 2),
-      newCell(game, 2, true),
-      newCell(game, 2),
-      newCell(game, 3),
-    ],
-  ];
+/**
+ * 4 -> 2, 8 -> 4, 12 -> 6. A placeholder: the README lists a real difficulty
+ * modifier as its own TODO.
+ */
+export function maxGuessesFor(size: number): number {
+  return Math.max(1, Math.ceil(size / 2));
+}
+
+export async function newBoard(
+  size: number,
+  seed?: number,
+  signal?: AbortSignal,
+): Promise<Board> {
+  const game = newGame(size, maxGuessesFor(size));
+  const cells = await generateCells(game, size, seed, signal);
+
   const board: HTMLDivElement = document.createElement("div");
   board.id = "board";
+  // Cells are appended flat; the grid gets its column count from CSS.
+  board.style.setProperty("--board-size", String(size));
 
   cells.forEach((row) =>
     row.forEach((cell) => {
@@ -54,8 +40,5 @@ export function newBoard(_size: number): Board {
   html.append(game.html);
   html.append(board);
 
-  return {
-    state: cells,
-    html,
-  };
+  return { state: cells, game, html };
 }
