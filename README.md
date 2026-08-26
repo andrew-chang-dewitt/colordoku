@@ -9,10 +9,9 @@ to play the game, clone this repo, then run `npm run dev` in your terminal from
 the repo root. if you navigate to the url prompted in your terminal (usually
 `https://localhost:5173`) you'll see a game board generated.
 
-building requires a rust toolchain with the `wasm32-unknown-unknown` target plus
-[`wasm-pack`](https://rustwasm.github.io/wasm-pack/), since the board generator
-compiles to wasm. `npm run dev`, `npm run build`, and `npm test` all build it for
-you first.
+building requires a rust toolchain with the `wasm32-unknown-unknown` target to
+compile the board generator to wasm. `npm run dev`, `npm run build`, and `npm test`
+all run cargo w/ appropriate optionto build the wasm module for you first.
 
 pass `?size=` to pick a board size (1, or 4 through 16 — the stylesheet defines
 16 region colours) and `?seed=` to reproduce a specific board, e.g.

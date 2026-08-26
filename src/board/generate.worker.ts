@@ -4,7 +4,7 @@
 // the largest sizes, so running it on the main thread freezes the tab outright.
 // Here it only blocks this worker, leaving the page responsive and cancellable.
 
-import init, { generateBoard } from "../generator/pkg/colordoku_generator.js";
+import { generateBoard, loadGenerator } from "../generator/loader";
 
 export interface GenerateRequest {
   id: number;
@@ -34,10 +34,10 @@ const ctx = self as unknown as {
   ): void;
 };
 
-let ready: Promise<unknown> | null = null;
-function ensureReady(): Promise<unknown> {
+let ready: Promise<void> | null = null;
+function ensureReady(): Promise<void> {
   if (ready === null) {
-    ready = init().catch((err: unknown) => {
+    ready = loadGenerator().catch((err: unknown) => {
       ready = null;
       throw err;
     });
@@ -63,18 +63,13 @@ ctx.addEventListener("message", (event) => {
         return;
       }
 
-      try {
-        // These getters each copy out of wasm memory, so the buffers are ours to
-        // hand over rather than clone.
-        const regions = board.regions;
-        const queenCols = board.queenCols;
-        ctx.postMessage(
-          { id, ok: true, size: board.size, regions, queenCols, attempts: board.attempts },
-          [regions.buffer, queenCols.buffer],
-        );
-      } finally {
-        board.free();
-      }
+      // The loader already copied these out of wasm memory, so the buffers are
+      // ours to hand over rather than clone.
+      const { regions, queenCols } = board;
+      ctx.postMessage(
+        { id, ok: true, size: board.size, regions, queenCols, attempts: board.attempts },
+        [regions.buffer, queenCols.buffer],
+      );
     },
     (err: unknown) => {
       ctx.postMessage({

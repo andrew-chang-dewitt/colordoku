@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "wasm": "wasm-pack build generator --target web --out-dir ../src/generator/pkg",
+    "wasm": "cargo build --manifest-path generator/Cargo.toml --target wasm32-unknown-unknown --release && cp generator/target/wasm32-unknown-unknown/release/colordoku_generator.wasm src/generator/colordoku_generator.wasm",
     "dev": "npm run wasm && vite",
     "build": "npm run wasm && tsc && vite build",
     "preview": "vite preview",

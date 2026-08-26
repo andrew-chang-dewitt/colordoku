@@ -26,4 +26,4 @@ __pycache__/
 
 # rust / wasm
 /generator/target
-/src/generator/pkg
+/src/generator/*.wasm

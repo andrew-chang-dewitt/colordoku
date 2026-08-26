@@ -21,7 +21,7 @@ pub mod rng;
 pub mod solver;
 
 #[cfg(target_arch = "wasm32")]
-mod wasm;
+mod abi;
 
 /// Largest board this crate can generate.
 ///

@@ -6,10 +6,9 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-# wasm-bindgen is only needed for the browser build, so `cargo test` on the host
-# never compiles it.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.127"
+# No dependencies. The wasm boundary is a hand-written C ABI (src/abi.rs) rather
+# than wasm-bindgen, so building needs only cargo and the wasm32 target — no
+# wasm-pack, and no version-matched code generator to install.
 
 [profile.release]
 opt-level = 3

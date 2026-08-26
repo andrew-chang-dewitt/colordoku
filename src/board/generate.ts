@@ -14,13 +14,16 @@ export const MIN_SIZE = 4;
 /**
  * Sizes where generation is slow enough to be worth warning a player about.
  * Measured worst case: 13 is under a second, 14 runs to ~20s and 15 to ~47s.
+ * Set to 12 to ensure warning present in event generation takes longer than
+ * expected -- effectively barely shown if fast anyways.
  */
-export const SLOW_SIZE = 14;
+export const SLOW_SIZE = 12;
 
 /** Boards of 2 or 3 cells a side are impossible; 1 is the trivial board. */
 export function isSupportedSize(size: number): boolean {
   return (
-    Number.isInteger(size) && (size === 1 || (size >= MIN_SIZE && size <= MAX_SIZE))
+    Number.isInteger(size) &&
+    (size === 1 || (size >= MIN_SIZE && size <= MAX_SIZE))
   );
 }
 
@@ -40,22 +43,25 @@ function getWorker(): Worker {
     worker = new Worker(new URL("./generate.worker.ts", import.meta.url), {
       type: "module",
     });
-    worker.addEventListener("message", (event: MessageEvent<GenerateResponse>) => {
-      const message = event.data;
-      const entry = pending.get(message.id);
-      if (entry === undefined) return;
-      pending.delete(message.id);
+    worker.addEventListener(
+      "message",
+      (event: MessageEvent<GenerateResponse>) => {
+        const message = event.data;
+        const entry = pending.get(message.id);
+        if (entry === undefined) return;
+        pending.delete(message.id);
 
-      if (message.ok) {
-        entry.resolve(message);
-      } else {
-        const error =
-          message.name === "RangeError"
-            ? new RangeError(message.message)
-            : new Error(message.message);
-        entry.reject(error);
-      }
-    });
+        if (message.ok) {
+          entry.resolve(message);
+        } else {
+          const error =
+            message.name === "RangeError"
+              ? new RangeError(message.message)
+              : new Error(message.message);
+          entry.reject(error);
+        }
+      },
+    );
     worker.addEventListener("error", (event) => {
       failAll(new Error(`board generator worker failed: ${event.message}`));
     });
@@ -104,7 +110,9 @@ export function cellsFromArrays(
   queenCols: Uint8Array,
 ): Cell[][] {
   if (regions.length !== size * size) {
-    throw new Error(`expected ${size * size} region ids, got ${regions.length}`);
+    throw new Error(
+      `expected ${size * size} region ids, got ${regions.length}`,
+    );
   }
   if (queenCols.length !== size) {
     throw new Error(`expected ${size} queen columns, got ${queenCols.length}`);

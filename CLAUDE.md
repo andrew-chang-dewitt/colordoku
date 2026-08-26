@@ -12,10 +12,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run a single TS test file: `npx vitest run src/board/generate.test.ts`
 - Run a single Rust test: `cargo test --manifest-path generator/Cargo.toml <name>`
 
-**A fresh clone will not typecheck until `npm run wasm` has run at least once** —
-`src/board/generate.ts` imports types from the generated `src/generator/pkg/`, which is
-gitignored. Every script that runs `tsc` or `vite` builds it first. Requires a Rust
-toolchain with the `wasm32-unknown-unknown` target and `wasm-pack`.
+**A fresh clone will not build until `npm run wasm` has run at least once** —
+`src/generator/loader.ts` imports the compiled `src/generator/colordoku_generator.wasm`,
+which is gitignored. Every script that runs `tsc` or `vite` builds it first.
+
+Building needs **only cargo plus the `wasm32-unknown-unknown` target** — no `wasm-pack`,
+no `wasm-bindgen` CLI, nothing downloaded at build time. `npm run wasm` is a plain
+`cargo build` followed by a copy.
 
 **Rebuild the wasm after changing Rust.** Running `npx vite` directly skips the
 `npm run wasm` step, so the browser silently keeps the previous `.wasm`.
@@ -51,9 +54,9 @@ only defines `--color-group-0..15` — a palette limit, not an algorithm one.
 
 ### Rust generator (`generator/`)
 
-Compiled to wasm via `wasm-pack --target web` into the gitignored `src/generator/pkg/`.
-No external crates; `wasm-bindgen` is a wasm-only dependency so `cargo test` does not
-compile it.
+Compiled with a plain `cargo build --target wasm32-unknown-unknown --release`. **The
+crate has zero dependencies** — the wasm boundary is a hand-written C ABI, not
+wasm-bindgen, so no code generator has to be installed or version-matched.
 
 - `solver.rs` — **the hot path**, ~all of the runtime. Allocation-free: `u32` bitmasks,
   fixed `[u8; MAX_N]` placements, `trailing_zeros()` to pick columns. Carries a
@@ -65,7 +68,14 @@ compile it.
   its seed** — load-bearing, and easy to break.
 - `rng.rs` — hand-rolled splitmix64 + xoshiro256**, seeded from JS. Avoids
   `getrandom`'s wasm build flags and makes boards reproducible from a seed.
-- `grid.rs`, `render.rs`, `error.rs`, `wasm.rs` (the only file touching wasm-bindgen).
+- `abi.rs` — the wasm boundary (wasm32 builds only). Exports `generate_board(size, seed)`
+  returning a status code, plus pointers into a fixed static staging buffer. The module
+  **imports nothing**, so `src/generator/loader.ts` instantiates it with no glue. Results
+  are staged in one reusable buffer, so the loader copies them out before the next call.
+- `grid.rs`, `render.rs`, `error.rs`.
+
+Error *messages* live in `loader.ts`, not Rust — the ABI passes status codes to avoid
+marshalling strings. `abi.rs`'s constants and the loader's must stay in step.
 
 Boards are **not** reproducible against `src/board/generator.py`, the original Python
 prototype — different RNG. Determinism holds within the Rust crate.
