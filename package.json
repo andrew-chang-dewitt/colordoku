@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "npm run wasm && vitest",
     "test:rust": "cargo test --manifest-path generator/Cargo.toml",
-    "test:rust:release": "cargo test --manifest-path generator/Cargo.toml --release"
+    "test:rust:release": "cargo test --manifest-path generator/Cargo.toml --release",
+    "clean": "rm -rf dist && rm -rf src/generator/* && cargo clean --manifest-path generator/Cargo.toml"
   },
   "devDependencies": {
     "happy-dom": "^20.11.6",
