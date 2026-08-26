@@ -8,6 +8,14 @@ export interface Game {
 
   incFound: () => void;
   incGuess: () => void;
+  /**
+   * Registers a callback fired exactly once, the moment `state` transitions
+   * to won (1) or lost (2) — not on every call to incFound/incGuess, only the
+   * one that actually flips the game over. Lets UI outside this module (a
+   * win/loss modal) react without incFound/incGuess's call sites in cell.ts
+   * needing to change.
+   */
+  onEnd: (cb: (state: 1 | 2) => void) => void;
 
   html: HTMLUListElement;
   update: () => void;
@@ -15,6 +23,11 @@ export interface Game {
 
 export function newGame(size: number, max: number): Game {
   const html = renderGame(max);
+  const listeners: Array<(state: 1 | 2) => void> = [];
+
+  function notifyEnd(state: 1 | 2): void {
+    for (const cb of listeners) cb(state);
+  }
 
   return {
     size,
@@ -27,6 +40,7 @@ export function newGame(size: number, max: number): Game {
       this.queensFound++;
       if (this.queensFound == this.size) {
         this.state = 1;
+        notifyEnd(1);
       }
     },
 
@@ -35,6 +49,7 @@ export function newGame(size: number, max: number): Game {
       this.update();
       if (this.guessesLeft == 0) {
         this.state = 2;
+        notifyEnd(2);
       }
     },
 
@@ -42,6 +57,10 @@ export function newGame(size: number, max: number): Game {
       for (let i = this.guessesLeft; i < max; i++) {
         this.html.children[i].className = classes.used;
       }
+    },
+
+    onEnd(cb) {
+      listeners.push(cb);
     },
   };
 }

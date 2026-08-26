@@ -1,0 +1,42 @@
+.modal {
+  margin: auto;
+  padding: 1.5em;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75em;
+  width: calc(100% - 2rem);
+  max-width: 24em;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  box-shadow: 0 0.5em 1.5em rgb(0 0 0 / 0.3);
+}
+
+.modal::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+.heading {
+  margin: 0 0 0.5em;
+  font-size: 1.35em;
+}
+
+/* Reuse the same queen/error tokens cell.ts marks a correct/incorrect guess
+ * with, so the modal's verdict reads as the same signal as the board did. */
+.won .heading {
+  color: var(--color-queen);
+}
+
+.lost .heading {
+  color: var(--color-error);
+}
+
+.message {
+  margin: 0 0 1.25em;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}

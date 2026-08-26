@@ -1,0 +1,108 @@
+/* A bottom sheet built on <dialog> + showModal(), so the board behind it is
+ * genuinely inert rather than only looking that way, and the greyed-out cover is
+ * the native ::backdrop. */
+
+.drawer {
+  /* Undo the UA's centred modal box and pin it to the bottom edge. */
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow: auto;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border-radius: 0.75em 0.75em 0 0;
+  box-shadow: 0 -0.5em 1.5em rgb(0 0 0 / 0.3);
+
+  translate: 0 100%;
+  transition:
+    translate 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open] {
+  translate: 0 0;
+}
+
+/* Without this the drawer would pop in: it animates from display:none. */
+@starting-style {
+  .drawer[open] {
+    translate: 0 100%;
+  }
+}
+
+/* Everything still visible above the drawer is greyed out and unclickable. */
+.drawer::backdrop {
+  background-color: rgb(0 0 0 / 0);
+  transition:
+    background-color 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open]::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+@starting-style {
+  .drawer[open]::backdrop {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer::backdrop {
+    transition-duration: 1ms;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  /* Padding lives here, not on the dialog, so the form covers the dialog's whole
+   * box — that is what makes "click landed on the dialog" mean "backdrop". */
+  padding: 1.25em;
+  margin: 0 auto;
+  max-width: 22em;
+}
+
+.heading {
+  margin: 0 0 0.25em;
+  font-size: 1.25em;
+}
+
+.label {
+  font-weight: bold;
+}
+
+.input {
+  padding: 0.5em;
+  font-size: 1em;
+  color: var(--color-on-surface);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25em;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5em;
+  margin-top: 0.75em;
+}
+
+.cancel[hidden] {
+  display: none;
+}

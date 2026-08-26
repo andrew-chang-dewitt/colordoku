@@ -1,0 +1,8 @@
+.timer {
+  margin: 0.25em 0 0.5em;
+  text-align: center;
+  /* Digits stay a fixed width as seconds tick over, so the layout doesn't
+   * jitter once or twice a minute. */
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
