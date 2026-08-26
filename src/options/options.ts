@@ -1,5 +1,6 @@
 import classes from "./options.module.css";
 import { MAX_SIZE, MIN_SIZE } from "../board/generate";
+import { abandonGame } from "../persistence/persistence";
 
 const DEFAULT_SIZE = 8;
 
@@ -20,8 +21,19 @@ export interface OptionsConfig {
   onSubmit?: (size: number) => void;
 }
 
-/** Load a fresh board at the chosen size, dropping any `?seed=` from the URL. */
+/**
+ * Load a fresh board at the chosen size, dropping any `?board-id=` from the
+ * URL. This is the single choke point both "start a new game at this size" paths
+ * go through (the options drawer's submit, and gameover's "New game, same
+ * size"), so it's also where a previously-saved in-progress game is
+ * discarded — the player has explicitly chosen to abandon it for a new one.
+ * Uses abandonGame(), not a plain clearGame(): the old page's own
+ * `beforeunload` persist handler still fires during the navigation below,
+ * after this line runs, and would otherwise silently re-save the very game
+ * just cleared (see abandonGame's doc comment).
+ */
 export function goToSize(size: number): void {
+  abandonGame();
   location.assign(`?size=${size}`);
 }
 

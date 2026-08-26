@@ -20,6 +20,13 @@ export type GenerateResponse =
       regions: Uint8Array;
       queenCols: Uint8Array;
       attempts: number;
+      /**
+       * Echoes the request's seed. When a race between several workers is in
+       * flight (see generate.ts), each racer is given a different derived
+       * seed, so the caller can't otherwise tell which one actually won —
+       * this is how it learns the seed that reproduces the returned board.
+       */
+      seed: number;
     }
   | { id: number; ok: false; name: string; message: string };
 
@@ -69,7 +76,7 @@ ctx.addEventListener("message", (event) => {
         const regions = board.regions;
         const queenCols = board.queenCols;
         ctx.postMessage(
-          { id, ok: true, size: board.size, regions, queenCols, attempts: board.attempts },
+          { id, ok: true, size: board.size, regions, queenCols, attempts: board.attempts, seed },
           [regions.buffer, queenCols.buffer],
         );
       } finally {

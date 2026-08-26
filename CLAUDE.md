@@ -44,10 +44,20 @@ Three factory-function modules, each returning an object literal holding state, 
   HUD and the grid, and sets `--board-size` inline so the CSS grid gets its column
   count.
 
-`src/board/generate.ts` is the bridge to the generator. `generateCells()` posts to a
-worker and maps the result through `newCell`; `cellsFromArrays()` is the pure,
-separately-tested half that does the reshaping. `MAX_SIZE` is 16 because `style.css`
-only defines `--color-group-0..15` — a palette limit, not an algorithm one.
+`src/board/generate.ts` is the bridge to the generator. `generateCells()` posts to one
+or more Web Workers and maps the result through `newCell`; `cellsFromArrays()` is the
+pure, separately-tested half that does the reshaping. `MAX_SIZE` is 16 because
+`style.css` only defines `--color-group-0..15` — a palette limit, not an algorithm one.
+
+Passing an explicit `seed` to `generateCells`/`newBoard` always resolves through exactly
+one worker, so it's fully reproducible — that's what makes a saved game (see
+`persistence.ts`) or a `?board-id=` URL param reliable. Omitting `seed` asks for a fresh
+board instead: at sizes at or above `SLOW_SIZE`, that races several workers (`raceWidth`,
+capped by `MAX_RACERS` and scaled toward `navigator.hardwareConcurrency`) against
+independently derived seeds (`deriveSeed`) and keeps whichever finishes first, since
+nothing about *which* racer wins ever needs to be reproduced — only the seed the winner
+actually used does, returned as `GeneratedCells.seed`. See `generate.race.test.ts` for
+the pool/race orchestration tests (fake `Worker`, no real wasm).
 
 ### Rust generator (`generator/`)
 
@@ -76,11 +86,36 @@ Generation cost grows steeply with size: 12 and under are effectively instant in
 browser, 13 is ~1.4s, 14 ranges 3–40s by seed, and 15–16 can take minutes. That is why
 generation runs in a Web Worker (`src/board/generate.worker.ts`) — the call into wasm is
 synchronous and would otherwise freeze the tab. Sizes at or above `SLOW_SIZE` get an
-elapsed timer and a cancel button; cancelling terminates the worker, since the Rust call
-has no interruption point.
+elapsed timer and a cancel button; cancelling terminates every worker involved, since the
+Rust call has no interruption point.
 
 The cost is the restart loop, not any single solve: a layout that gets stuck during
-refinement is thrown away wholesale, and the restart count climbs sharply past 13.
+refinement is thrown away wholesale, and the restart count climbs sharply past 13. Two
+mitigations for that, from a parallelism investigation (measurements and full
+methodology in that investigation's notes, not checked into this repo):
+
+- **Early abandonment** (`GenOptions::max_nodes` in `generator/src/generate.rs`):
+  `refine_unique` tracks total solver nodes spent (`solver::solve_counted`) across its
+  calls within one attempt and gives up on that attempt once a per-size budget is
+  exceeded, rather than running to the full `refine_iters` cap. This matters because
+  doomed attempts are not cheap — at n=13-16, attempts that only fail after exhausting
+  `refine_iters` are ~10% of attempts but 53-65% of total CPU time, and attempt cost does
+  not predict success (successful attempts are on average *cheaper* than failed ones at
+  every size measured). Budgets are set per-size from direct measurement of the real
+  `generate_with`, not a formula — a too-tight budget doesn't fail cleanly, it raises the
+  restart count enough to be *slower* than no budget, and that crossover point did not
+  move smoothly with `n` in testing. Only n=13 (5 billion nodes) and n=14 (1 billion) are
+  currently tuned; n≥15 is intentionally left unbounded pending the same measurement.
+- **Racing workers** (`src/board/generate.ts`): see the TypeScript-side note above.
+  Real end-to-end measurement at n=14 (K independent OS processes each running the real
+  `generate()`, first success wins, losers killed): ~2.8x at K=4, ~8.8x at K=8, ~22.6x at
+  K=12 — clearly sublinear past K=8, which is why `MAX_RACERS` is 8.
+
+Determinism (`same_seed_reproduces_the_board` in `generator/tests/board.rs`) is
+unaffected by either change: `max_nodes` only changes how many restarts a given seed's
+RNG stream needs to reach the same eventual attempt, and racing only ever picks among
+independently-seeded *candidates* — a specific seed passed in always resolves
+single-worker, deterministically, exactly as before.
 
 ### CSS
 

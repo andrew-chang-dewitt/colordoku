@@ -1,5 +1,8 @@
 .timer {
-  margin: 0.25em 0 0.5em;
+  /* Spacing between this and the guess pips comes from #hud's gap, not a
+   * margin here, so the two stay a consistent distance apart regardless of
+   * what else ends up alongside them in the HUD. */
+  margin: 0;
   text-align: center;
   /* Digits stay a fixed width as seconds tick over, so the layout doesn't
    * jitter once or twice a minute. */

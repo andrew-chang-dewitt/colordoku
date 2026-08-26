@@ -90,7 +90,9 @@ fn errors_read_like_sentences() {
 fn exhaustion_is_reported() {
     // One restart with a single refinement pass essentially never lands on a
     // unique board at this size, so this exercises the give-up path.
-    let opts = GenOptions { restarts: 1, refine_iters: 1 };
+    // No node budget here: this test is exercising restart exhaustion, not the
+    // node budget, so max_nodes is left unlimited.
+    let opts = GenOptions { restarts: 1, refine_iters: 1, max_nodes: u64::MAX };
     let mut failures = 0;
     for seed in 0..20u32 {
         let mut rng = Rng::from_seed(seed);

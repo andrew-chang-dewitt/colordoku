@@ -15,8 +15,8 @@ compiles to wasm. `npm run dev`, `npm run build`, and `npm test` all build it fo
 you first.
 
 pass `?size=` to pick a board size (1, or 4 through 16 — the stylesheet defines
-16 region colours) and `?seed=` to reproduce a specific board, e.g.
-`http://localhost:5173/?size=8&seed=42`.
+16 region colours) and `?board-id=` to reproduce a specific board, e.g.
+`http://localhost:5173/?size=8&board-id=42`.
 
 ### rules
 

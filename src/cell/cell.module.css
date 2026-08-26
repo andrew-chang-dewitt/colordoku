@@ -5,6 +5,10 @@
 }
 
 .cell {
+  /* Disables double-tap-to-zoom (while keeping normal single-tap behavior)
+   * so a real double-tap doesn't race the browser's own zoom gesture — see
+   * the click-timestamp double-click detection in cell.ts. */
+  touch-action: manipulation;
   /* Inherits --cell-size from #board so cells stay square at any board size:
    * the column track is that same variable. */
   height: var(--cell-size, 3em);

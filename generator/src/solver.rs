@@ -18,6 +18,18 @@ pub type Placement = [u8; MAX_N];
 /// `out`. Returns how many were found (which may exceed `out.len()`, but never
 /// `limit`). Enumeration is low-column-first, matching the reference implementation.
 pub fn solve(n: usize, regions: &[u8], limit: usize, out: &mut [Placement]) -> usize {
+    solve_counted(n, regions, limit, out).0
+}
+
+/// Same search as `solve`, but also returns how many recursive calls it made.
+///
+/// Exists so a caller that runs many searches per attempt (`refine_unique`) can
+/// bound total work without touching the search itself: the counter is a pure
+/// addition to `descend` and changes nothing about which branches are visited or
+/// in what order, so `solve`'s witnesses and count are unaffected. Not part of the
+/// public API — `refine_unique` is the only caller, and the wasm boundary never
+/// needs a node count.
+pub(crate) fn solve_counted(n: usize, regions: &[u8], limit: usize, out: &mut [Placement]) -> (usize, u64) {
     debug_assert!(n <= MAX_N);
     debug_assert_eq!(regions.len(), n * n);
 
@@ -44,9 +56,10 @@ pub fn solve(n: usize, regions: &[u8], limit: usize, out: &mut [Placement]) -> u
         place: [0; MAX_N],
         full,
         regions_from,
+        nodes: 0,
     };
     search.descend(0, 0, 0, -1);
-    search.found
+    (search.found, search.nodes)
 }
 
 /// How many solutions exist, capped at `limit`.
@@ -63,10 +76,12 @@ struct Search<'a> {
     place: Placement,
     full: u32,
     regions_from: [u32; MAX_N + 1],
+    nodes: u64,
 }
 
 impl Search<'_> {
     fn descend(&mut self, row: usize, cols_used: u32, regions_used: u32, prev_col: i32) {
+        self.nodes += 1;
         if row == self.n {
             if self.found < self.out.len() {
                 self.out[self.found] = self.place;
@@ -275,6 +290,44 @@ mod tests {
                     let b = solve_unpruned(n, regions, limit, &mut plain);
                     assert_eq!(a, b, "count differs at n={n} limit={limit}");
                     assert_eq!(pruned, plain, "witnesses differ at n={n} limit={limit}");
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 900, "only {checked} comparisons ran");
+    }
+
+    /// `solve_counted` is `solve` plus a node counter that `refine_unique`'s node
+    /// budget (`GenOptions::max_nodes`) relies on to abandon doomed attempts early.
+    /// The counter must be a pure addition: it must never change which solutions
+    /// are found, how many, or in what order — `refine_unique` depends on
+    /// enumeration order to pick its alternate witness, exactly like the prune
+    /// above. This proves `solve_counted`'s `(count, witnesses)` always matches
+    /// plain `solve`'s, across the same cases `prune_changes_nothing_observable`
+    /// checks, plus that the reported node count is always positive whenever any
+    /// searching happened at all.
+    #[test]
+    fn counted_search_matches_uncounted_search() {
+        use crate::generate::{grow_regions, random_solution};
+        use crate::rng::Rng;
+
+        let mut rng = Rng::from_seed(20260826);
+        let mut checked = 0;
+        for n in [4usize, 5, 6, 7, 8, 9] {
+            for _ in 0..40 {
+                let queens = random_solution(n, &mut rng).unwrap();
+                let grid = grow_regions(n, &queens, &mut rng);
+                let regions = grid.as_slice();
+
+                for limit in [1usize, 2, 5, 50] {
+                    let mut counted_out = [[0u8; MAX_N]; 2];
+                    let mut plain_out = [[0u8; MAX_N]; 2];
+                    let (counted_found, nodes) =
+                        solve_counted(n, regions, limit, &mut counted_out);
+                    let plain_found = solve(n, regions, limit, &mut plain_out);
+                    assert_eq!(counted_found, plain_found, "count differs at n={n} limit={limit}");
+                    assert_eq!(counted_out, plain_out, "witnesses differ at n={n} limit={limit}");
+                    assert!(nodes >= 1, "a search that ran should visit at least its root node");
                     checked += 1;
                 }
             }

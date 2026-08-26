@@ -1,7 +1,10 @@
 ul.guesses {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 0.35em;
 
+  margin: 0;
   padding: 0;
   width: 100%;
 
@@ -12,9 +15,12 @@ ul.guesses > li.unused {
   padding: 0;
 }
 ul.guesses > li::after {
-  color: red;
+  /* Same token cell.ts marks an incorrect guess with, so a used pip reads as
+   * the same signal as an error cell on the board. */
+  color: var(--color-error);
   font-weight: bold;
-  font-size: 2em;
+  font-size: 1.5em;
+  line-height: 1;
 }
 ul.guesses > li.unused::after {
   content: "○";

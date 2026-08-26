@@ -94,8 +94,13 @@ body {
 
 .btn-primary {
   color: var(--color-surface);
-  background-color: var(--color-on-surface);
-  border: 1px solid var(--color-on-surface);
+  /* A flat var(--color-on-surface) fill (near-black on light, near-white on
+   * dark) reads as too stark against the page's own --color-surface
+   * background — it pops harder than a "primary action" button should next
+   * to otherwise-plain chrome. Blending in a little of the surface color
+   * softens it while keeping enough contrast to still read as primary. */
+  background-color: color-mix(in srgb, var(--color-on-surface) 85%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-on-surface) 85%, var(--color-surface));
   font-weight: bold;
 }
 
@@ -159,6 +164,90 @@ button.group-15 {
   margin-inline: auto;
 }
 
+/* main.ts's newGameButton() — sits directly under the board (or under the
+ * error message on a failed generation). Centered like the rest of the
+ * app's chrome, with real breathing room from the board above and the
+ * viewport edges on every side, rather than sitting flush at zero padding. */
+#new-game {
+  display: block;
+  margin: 1.25rem auto 1.5rem;
+}
+
+/* Guess pips plus whatever else main.ts appends alongside them (currently the
+ * timer) — one column of chrome, consistently spaced and centered above the
+ * board regardless of how many pieces end up in it. */
+#hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 1rem;
+}
+
+/* Generation-in-progress view (main.ts's newStatus()). Shown for every size
+ * — briefly on the fast path, for longer above SLOW_SIZE, where the note,
+ * elapsed counter and cancel button are added on. */
+#status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+#status .spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 0.2rem solid var(--color-border);
+  /* Only the top edge stands out from the rest of the ring, so rotation
+   * reads as motion rather than the ring just changing color in place. */
+  border-top-color: var(--color-on-surface);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #status .spinner {
+    /* Keep the ring as a static "in progress" cue — the mismatched top edge
+     * still reads as unfinished/loading — just without the spin. */
+    animation: none;
+  }
+}
+
+#status .status-label {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+/* Secondary to the label, same visual weight as the HUD timer's muted text. */
+#status .status-note {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+#status .status-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+#status .status-meta p {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
 #board {
   /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
 
@@ -179,9 +268,12 @@ button.group-15 {
   /* Room the board is *not* allowed to use. Horizontally: body margins plus a
    * little slack for a desktop scrollbar. Vertically: the guess pips above the
    * board and the "New game" button below it, which must stay on screen with
-   * the board (the options drawer is a modal <dialog> and overlays instead). */
+   * the board (the options drawer is a modal <dialog> and overlays instead).
+   * Bumped from 9rem to cover #new-game's own margin (2.75rem, added so it
+   * isn't flush against the board/viewport edge) on top of the existing
+   * slack for #hud. */
   --page-inset-inline: 1.25rem;
-  --page-inset-block: 9rem;
+  --page-inset-block: 10.5rem;
 
   /* The largest a cell ever gets; preserves the original 3em look on small
    * boards / large windows. Below that, whichever axis is tightest wins. */
@@ -210,7 +302,19 @@ button.group-15 {
   display: grid;
   grid-template-columns: repeat(var(--board-size, 4), var(--cell-size));
   gap: var(--board-gap);
-  background-color: darkgray;
+  /* Was a hardcoded `darkgray` that stayed identical in both themes; reusing
+   * --color-border ties the frame/gridlines to the same token the modal's
+   * border and the status spinner's ring already use, so it darkens with the
+   * rest of the chrome in dark mode instead of sitting there unchanged. */
+  background-color: var(--color-border);
+  border-radius: 0.4rem;
+  /* Same understated "lifted off the page" treatment as .modal's box-shadow,
+   * scaled down: this chrome is permanent rather than transient, so it should
+   * read as settled, not as prominent as something asking for attention. */
+  box-shadow: 0 0.3rem 0.9rem rgb(0 0 0 / 0.25);
+  /* Clips the square corner cells to follow the frame's rounded corners
+   * rather than poking past them. */
+  overflow: hidden;
   width: fit-content;
   padding: var(--board-pad);
 }

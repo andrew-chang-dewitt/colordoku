@@ -1,19 +1,26 @@
 import "./style.css";
+import type { Board } from "./board/board";
 import { newBoard } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
 import { newOptions, goToSize } from "./options/options";
 import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
+import type { SavedGame } from "./persistence/persistence";
+import { loadGame, saveGame } from "./persistence/persistence";
 
 const app = document.querySelector("#app")!;
 
-// ?size= picks the board size; ?seed= reproduces a specific board. Arriving with
-// no size means the player has not chosen one yet, so the options drawer opens
-// instead of a board being generated.
+// ?size= picks the board size; ?board-id= reproduces a specific board (an
+// opaque identifier — really the seed that produced it, but not exposed as
+// "seed" in the URL: once generation can race several candidate seeds and
+// keep whichever wins, the value here isn't something a player meaningfully
+// chose in advance, just an identifier for one specific generated board).
+// Arriving with no size means the player has not chosen one yet, so the
+// options drawer opens instead of a board being generated.
 const params = new URLSearchParams(location.search);
 const sizeParam = params.get("size");
-const seedParam = params.get("seed");
-const seed = seedParam === null ? undefined : Number(seedParam);
+const boardIdParam = params.get("board-id");
+const seed = boardIdParam === null ? undefined : Number(boardIdParam);
 
 const options = newOptions({
   size: sizeParam === null ? undefined : Number(sizeParam),
@@ -34,7 +41,15 @@ function newStatus(size: number, controller: AbortController): Status {
   const html = document.createElement("div");
   html.id = "status";
 
+  // Purely decorative — the label text already says what's happening — so it
+  // stays out of the accessibility tree rather than announcing as an image.
+  const spinner = document.createElement("div");
+  spinner.className = "spinner";
+  spinner.setAttribute("aria-hidden", "true");
+  html.append(spinner);
+
   const label = document.createElement("p");
+  label.className = "status-label";
   label.textContent = `Generating a ${size}x${size} board…`;
   html.append(label);
 
@@ -43,21 +58,27 @@ function newStatus(size: number, controller: AbortController): Status {
   }
 
   const note = document.createElement("p");
+  note.className = "status-note";
   note.textContent = "Boards this large can take a while.";
   html.append(note);
+
+  const meta = document.createElement("div");
+  meta.className = "status-meta";
 
   const elapsed = document.createElement("p");
   const started = Date.now();
   const tick = setInterval(() => {
     elapsed.textContent = `${Math.round((Date.now() - started) / 1000)}s elapsed`;
   }, 250);
-  html.append(elapsed);
+  meta.append(elapsed);
 
   const cancel = document.createElement("button");
   cancel.className = "btn btn-secondary";
   cancel.textContent = "Cancel";
   cancel.addEventListener("click", () => controller.abort());
-  html.append(cancel);
+  meta.append(cancel);
+
+  html.append(meta);
 
   return {
     html,
@@ -77,6 +98,36 @@ function newGameButton(): HTMLButtonElement {
   return button;
 }
 
+/**
+ * A saved game only counts as resumable for the board we're about to show:
+ * same size, and — if the URL names an explicit board — the same board. A
+ * mismatched explicit `?board-id=` means the player deliberately navigated to
+ * a specific (probably different) board, which should win over whatever was
+ * left mid-play; that new board simply overwrites the save the next time the
+ * player interacts with it.
+ */
+function resumableSave(size: number): SavedGame | null {
+  const saved = loadGame();
+  if (saved === null || saved.size !== size) return null;
+  if (boardIdParam !== null && Number(boardIdParam) !== saved.seed) return null;
+  return saved;
+}
+
+/** Snapshots everything persistence.ts's SavedGame needs from the live board + timer. */
+function snapshot(board: Board, timer: ReturnType<typeof newTimer>): Omit<SavedGame, "version"> {
+  return {
+    size: board.game.size,
+    seed: board.seed,
+    guessesLeft: board.game.guessesLeft,
+    queensFound: board.game.queensFound,
+    gameState: board.game.state,
+    elapsedMs: timer.elapsedMs(),
+    cells: board.state.map((row) =>
+      row.map((cell) => ({ state: cell.state, frozen: cell.frozen })),
+    ),
+  };
+}
+
 async function main(): Promise<void> {
   if (sizeParam === null) {
     // Nothing behind the drawer to go back to, so it cannot be dismissed.
@@ -85,21 +136,42 @@ async function main(): Promise<void> {
   }
 
   const size = Number(sizeParam);
+  const saved = resumableSave(size);
   const controller = new AbortController();
   const status = newStatus(size, controller);
   app.append(status.html);
   preload();
 
   try {
-    const board = await newBoard(size, seed, controller.signal);
+    // A resumable save pins the seed so generation reproduces the exact same
+    // region/queen layout; player progress (marks, guesses, elapsed time) is
+    // then re-applied on top of that freshly generated board below.
+    const board = await newBoard(size, saved?.seed ?? seed, controller.signal);
     app.append(board.html);
+
+    if (saved !== null) {
+      board.state.forEach((row, r) =>
+        row.forEach((cell, c) => cell.restore(saved.cells[r][c].state, saved.cells[r][c].frozen)),
+      );
+      board.game.guessesLeft = saved.guessesLeft;
+      board.game.queensFound = saved.queensFound;
+      board.game.state = saved.gameState;
+      board.game.update();
+    }
 
     // Timer starts once the board is actually playable (after generation,
     // not during it — the in-progress status above has its own elapsed
     // clock for that separate concern) and stops the moment the game ends.
+    // A resumed game restores the saved elapsed time instead of starting
+    // from zero — still running if play was in progress, frozen if it had
+    // already ended.
     const timer = newTimer();
     board.game.html.insertAdjacentElement("afterend", timer.html);
-    timer.start();
+    if (saved !== null) {
+      timer.restore(saved.elapsedMs, saved.gameState === 0);
+    } else {
+      timer.start();
+    }
 
     const gameOver = newGameOver({
       onNewGame: () => goToSize(size),
@@ -107,10 +179,54 @@ async function main(): Promise<void> {
     });
     app.append(gameOver.html);
 
+    const persist = (): void => saveGame(snapshot(board, timer));
+
     board.game.onEnd((state) => {
       timer.stop();
       gameOver.show({ state, elapsedMs: timer.elapsedMs() });
+      // Game over; the timer will never run again on this page, so drop its
+      // visibilitychange listener rather than leaving it dangling until a
+      // full page navigation cleans it up.
+      timer.dispose();
+      // Persist the final state so a reload re-shows the same game-over
+      // modal instead of silently starting a new board — the save is only
+      // cleared by an explicit "new game" action (see options.ts's goToSize).
+      persist();
     });
+
+    if (saved !== null && saved.gameState !== 0) {
+      // The saved game was already won/lost — nothing to play, so go
+      // straight to the game-over modal rather than a live, interactive
+      // (but pointless) restored board sitting behind it.
+      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs });
+    } else {
+      // Persist on every interaction with a cell (marking, eliminating, or
+      // guessing) — cheap, bounded by how often the player actually clicks,
+      // and simplest way to keep the save exactly in sync with the board.
+      // Bubbles up from whichever cell button was the real event target, so
+      // it always fires after that cell's own click handler already mutated
+      // its state. cell.ts detects both a mark-toggle and a guess-commit
+      // from the same native "click" event (its own debounced double-click
+      // logic, not a native dblclick), so listening for "click" alone here
+      // covers every interaction. Also persist on the two "player might be
+      // about to leave" signals, so idle elapsed time between clicks isn't
+      // lost: visibilitychange (mobile browsers may never fire beforeunload)
+      // and beforeunload itself (covers desktop reload/close reliably) — see
+      // persistence.ts's abandonGame() for how starting a new game avoids
+      // this beforeunload handler racing that intentional abandonment.
+      board.html.addEventListener("click", persist);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) persist();
+      });
+      window.addEventListener("beforeunload", persist);
+
+      if (saved === null) {
+        // First save for a brand-new board, so a reload before any
+        // interaction still resumes into this exact board rather than
+        // generating a different random one.
+        persist();
+      }
+    }
 
     if (import.meta.env.DEV) {
       // Dev-only convenience for manual/e2e testing: exposes the real queen

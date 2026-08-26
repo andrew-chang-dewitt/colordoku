@@ -24,16 +24,63 @@ pub struct GeneratedBoardCore {
 pub struct GenOptions {
     pub restarts: u32,
     pub refine_iters: u32,
+    /// Upper bound on total solver nodes (`solver::solve_counted`'s recursive-call
+    /// count, summed across every `solve` inside one `refine_unique` call) a
+    /// single attempt may spend before it is abandoned as doomed. `u64::MAX`
+    /// disables the budget.
+    ///
+    /// Measured cause for this field: at n=13..16, attempts that fail after
+    /// exhausting `refine_iters` ("itercap" failures, ~9-11% of attempts) account
+    /// for 53-65% of total generation CPU time, while successful attempts are on
+    /// average *cheaper* than failed ones at every size measured (e.g. at n=16 the
+    /// one successful attempt sampled cost 279ms of solver work against a mean
+    /// failed-attempt cost of 8.4s and a worst observed failure of 563s). Attempt
+    /// cost does not predict success, so bounding it sheds the expensive tail
+    /// without materially narrowing the search.
+    pub max_nodes: u64,
 }
 
 impl GenOptions {
     /// The reference used a flat `restarts = 200`, but it needed 78 restarts at
     /// n=12 — only about 2.5x headroom, and the trend is steep. Scaling with `n`
     /// keeps that margin at larger sizes.
+    ///
+    /// `max_nodes` is set per-size from direct measurement, not a formula: it was
+    /// tuned by running the real `generate_with` (not a proxy) across a range of
+    /// candidate budgets and checking both (a) does generation still succeed with
+    /// zero failures, and (b) is it actually faster. A budget too tight doesn't
+    /// just fail outright — a doomed-but-not-yet-detected attempt still costs up
+    /// to the budget before being abandoned, so tightening the budget can *raise*
+    /// the number of restarts needed by more than it saves per attempt, making
+    /// generation slower, not faster, well before `restarts` is ever exhausted.
+    /// That crossover point turned out not to move smoothly with `n`: n=13 needed
+    /// a budget of several billion nodes to stay safe, while n=14 tolerated (and
+    /// benefited more from) a budget an order of magnitude tighter — reflecting
+    /// real differences in each size's tail shape, not something a single
+    /// formula should be trusted to extrapolate. So budgets below are only set
+    /// where they were directly measured safe; n>=15 is intentionally left
+    /// unbounded pending the same measurement (a wrong guess here would make
+    /// exactly the sizes that already take tens of seconds to minutes *worse*).
+    ///
+    /// n=13: 5_000_000_000 verified safe (zero failures across repeated sweeps,
+    /// no slowdown) — mean/median generation time roughly unchanged, so the
+    /// benefit here is mostly cutting the rare worst-case tail rather than the
+    /// typical case.
+    /// n=14: 1_000_000_000 verified safe with a real ~49% mean-time reduction
+    /// (measured against unbounded: mean 11.8s -> 6.0s over repeated trials);
+    /// looser budgets (5B-20B) were also safe but gave smaller wins, and a
+    /// tighter one (500M) showed an even bigger win in a single sweep but wasn't
+    /// re-verified enough times to trust as the shipped value.
     pub fn for_size(n: usize) -> Self {
+        let max_nodes = match n {
+            13 => 5_000_000_000,
+            14 => 1_000_000_000,
+            _ => u64::MAX,
+        };
         Self {
             restarts: 200 + 50 * n as u32,
             refine_iters: 40 * n as u32,
+            max_nodes,
         }
     }
 }
@@ -137,21 +184,33 @@ pub fn grow_regions(n: usize, queens: &[u8], rng: &mut Rng) -> RegionGrid {
 /// forces two of the alternate's queens to share a region, killing it, while the
 /// intended solution — which only ever sits on region seeds — stays valid.
 ///
-/// Returns `false` when no legal move remains, so the caller restarts.
+/// Returns `false` when no legal move remains, so the caller restarts. Also
+/// returns `false` — abandoning the attempt early — once `max_nodes` total
+/// solver nodes have been spent across the calls made so far, so a doomed
+/// attempt cannot run up an unbounded bill before the caller gives up on it.
+/// The budget is only ever checked *between* whole `solve` calls, never inside
+/// one, so it cannot truncate a search and corrupt the two-witness invariant
+/// `refine_unique` depends on.
 pub fn refine_unique(
     n: usize,
     queens: &[u8],
     grid: &mut RegionGrid,
     rng: &mut Rng,
     max_iters: u32,
+    max_nodes: u64,
 ) -> bool {
     let is_seed = |r: usize, c: usize| queens[r] as usize == c;
+    let mut nodes_spent: u64 = 0;
 
     for _ in 0..max_iters {
         let mut witnesses = [[0u8; MAX_N]; 2];
-        let count = solver::solve(n, grid.as_slice(), 2, &mut witnesses);
+        let (count, nodes) = solver::solve_counted(n, grid.as_slice(), 2, &mut witnesses);
+        nodes_spent += nodes;
         if count == 1 {
             return true;
+        }
+        if nodes_spent > max_nodes {
+            return false;
         }
         debug_assert_eq!(
             count, 2,
@@ -238,7 +297,7 @@ pub fn generate_with(
             return Err(GenError::UnsupportedSize(n));
         };
         let mut regions = grow_regions(n, &queens, rng);
-        if refine_unique(n, &queens, &mut regions, rng, opts.refine_iters) {
+        if refine_unique(n, &queens, &mut regions, rng, opts.refine_iters, opts.max_nodes) {
             return Ok(GeneratedBoardCore { n, queens, regions, attempts: attempt });
         }
     }
