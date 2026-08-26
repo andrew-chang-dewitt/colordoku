@@ -14,8 +14,10 @@ export const MIN_SIZE = 4;
 /**
  * Sizes where generation is slow enough to be worth warning a player about.
  * Measured worst case: 13 is under a second, 14 runs to ~20s and 15 to ~47s.
+ * Set to 10 to ensure warning & cancel button shown in unexpectedly slow
+ * generation cases -- effectively unseen when generating fast anways.
  */
-export const SLOW_SIZE = 14;
+export const SLOW_SIZE = 10;
 
 /** Boards of 2 or 3 cells a side are impossible; 1 is the trivial board. */
 export function isSupportedSize(size: number): boolean {
