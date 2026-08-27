@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_SIZE, MIN_SIZE } from "../board/generate";
-import { newOptions } from "./options";
+import { newOptions, startOver } from "./options";
+import * as persistence from "../persistence/persistence";
+import * as history from "../persistence/history";
 
 function mount(config: Parameters<typeof newOptions>[0] = {}) {
   const options = newOptions(config);
@@ -35,6 +37,74 @@ describe("the size field", () => {
   it("clamps a pre-filled size that is out of range", () => {
     expect(mount({ size: 99 }).input.value).toBe(String(MAX_SIZE));
     expect(mount({ size: 2 }).input.value).toBe(String(MIN_SIZE));
+  });
+});
+
+describe("the difficulty field (UI only — not wired to any game behavior yet)", () => {
+  function radios(html: HTMLElement): HTMLInputElement[] {
+    return Array.from(html.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
+  }
+
+  it("renders exactly three mutually-exclusive options: easy, medium, hard", () => {
+    const { options } = mount();
+    const buttons = radios(options.html);
+    expect(buttons).toHaveLength(3);
+    expect(buttons.map((r) => r.value)).toEqual(["easy", "medium", "hard"]);
+    // Same `name` on all three is what makes them mutually exclusive as a
+    // native radio group, independent of any JS.
+    expect(new Set(buttons.map((r) => r.name))).toEqual(new Set(["difficulty"]));
+  });
+
+  it("defaults to medium selected", () => {
+    const { options } = mount();
+    const checked = radios(options.html).find((r) => r.checked);
+    expect(checked?.value).toBe("medium");
+    // Exactly one is checked, not zero or more than one.
+    expect(radios(options.html).filter((r) => r.checked)).toHaveLength(1);
+  });
+
+  it("pre-selects the configured difficulty instead of the default", () => {
+    const { options } = mount({ difficulty: "hard" });
+    const checked = radios(options.html).find((r) => r.checked);
+    expect(checked?.value).toBe("hard");
+  });
+
+  it("is grouped under a fieldset/legend, not just a plain label (a label pairs with one control; three radios need a group heading)", () => {
+    const { options } = mount();
+    const fieldset = options.html.querySelector("fieldset");
+    expect(fieldset).not.toBeNull();
+    expect(fieldset?.querySelector("legend")?.textContent).toBe("Difficulty");
+  });
+
+  it("is keyboard-accessible: every radio has an associated label via id/for, so clicking or activating the label toggles its radio", () => {
+    const { options } = mount();
+    for (const radio of radios(options.html)) {
+      expect(radio.id).not.toBe("");
+      const label = options.html.querySelector<HTMLLabelElement>(`label[for="${radio.id}"]`);
+      expect(label, `radio ${radio.value} should have a matching label`).not.toBeNull();
+    }
+  });
+
+  it("choosing a different option moves the checked state (still a real, individually focusable native radio group)", () => {
+    const { options } = mount();
+    const [easy, , hard] = radios(options.html);
+    expect(easy.checked).toBe(false);
+
+    hard.click();
+    expect(hard.checked).toBe(true);
+
+    easy.click();
+    expect(easy.checked).toBe(true);
+    expect(hard.checked).toBe(false); // native radio-group exclusivity
+  });
+
+  it("does not affect what onSubmit is called with — selecting it changes nothing about the submitted size", () => {
+    const onSubmit = vi.fn();
+    const { options, input, form } = mount({ onSubmit });
+    radios(options.html).find((r) => r.value === "hard")!.click();
+    input.value = "10";
+    submit(form);
+    expect(onSubmit).toHaveBeenCalledWith(10);
   });
 });
 
@@ -144,5 +214,43 @@ describe("opening and closing", () => {
     options.open({ dismissable: false });
     options.html.dispatchEvent(new Event("click", { bubbles: true }));
     expect(options.html.open).toBe(true);
+  });
+});
+
+describe("startOver", () => {
+  // startOver navigates via location.assign, same as goToSize — real
+  // navigation isn't exercised by unit tests (see the real-browser
+  // Playwright check for that); this verifies the actual side effects it's
+  // responsible for composing, in the right order.
+  it("closes out any in-progress history entry, abandons the saved game, and navigates to the same board's size + board-id, in that order", () => {
+    const closeOutSpy = vi.spyOn(history, "closeOutInProgress").mockImplementation(() => {});
+    const abandonSpy = vi.spyOn(persistence, "abandonGame").mockImplementation(() => {});
+    const assignSpy = vi.spyOn(location, "assign").mockImplementation(() => {});
+
+    const order: string[] = [];
+    closeOutSpy.mockImplementation(() => order.push("closeOut"));
+    abandonSpy.mockImplementation(() => order.push("abandon"));
+    assignSpy.mockImplementation(() => order.push("navigate"));
+
+    startOver(8, 424242);
+
+    expect(order).toEqual(["closeOut", "abandon", "navigate"]);
+    expect(assignSpy).toHaveBeenCalledWith("?size=8&board-id=424242");
+
+    closeOutSpy.mockRestore();
+    abandonSpy.mockRestore();
+    assignSpy.mockRestore();
+  });
+
+  it("keeps the exact same seed across the navigation (the whole point vs. goToSize)", () => {
+    vi.spyOn(history, "closeOutInProgress").mockImplementation(() => {});
+    vi.spyOn(persistence, "abandonGame").mockImplementation(() => {});
+    const assignSpy = vi.spyOn(location, "assign").mockImplementation(() => {});
+
+    startOver(12, 7);
+
+    expect(assignSpy).toHaveBeenCalledWith("?size=12&board-id=7");
+
+    vi.restoreAllMocks();
   });
 });

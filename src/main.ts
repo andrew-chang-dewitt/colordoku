@@ -2,11 +2,14 @@ import "./style.css";
 import type { Board } from "./board/board";
 import { newBoard } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
-import { newOptions, goToSize } from "./options/options";
+import { newOptions, goToSize, startOver } from "./options/options";
 import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
 import { loadGame, saveGame } from "./persistence/persistence";
+import { recordAttempt, statusFromGameState } from "./persistence/history";
+import { buildShareUrl, newShareButton } from "./share/share";
+import { newStartOverButton } from "./startover/startover";
 
 const app = document.querySelector("#app")!;
 
@@ -91,7 +94,6 @@ function newStatus(size: number, controller: AbortController): Status {
 
 function newGameButton(): HTMLButtonElement {
   const button = document.createElement("button");
-  button.id = "new-game";
   button.className = "btn btn-primary";
   button.textContent = "New game";
   button.addEventListener("click", () => options.open({ dismissable: true }));
@@ -114,7 +116,10 @@ function resumableSave(size: number): SavedGame | null {
 }
 
 /** Snapshots everything persistence.ts's SavedGame needs from the live board + timer. */
-function snapshot(board: Board, timer: ReturnType<typeof newTimer>): Omit<SavedGame, "version"> {
+function snapshot(
+  board: Board,
+  timer: ReturnType<typeof newTimer>,
+): Omit<SavedGame, "version"> {
   return {
     size: board.game.size,
     seed: board.seed,
@@ -135,23 +140,61 @@ async function main(): Promise<void> {
     return;
   }
 
+  const mainHtml = document.createElement("div");
+  mainHtml.id = "main";
+  app.append(mainHtml);
+
+  // build persistant top row header to access user data menu at any time
+  const aboveBoardRow = document.createElement("div");
+  aboveBoardRow.id = "above-board";
+  const aboveBoardRowLeft = document.createElement("div");
+  aboveBoardRowLeft.id = "above-board-left";
+  aboveBoardRow.append(aboveBoardRowLeft);
+  const aboveBoardRowCenter = document.createElement("div");
+  aboveBoardRowCenter.id = "above-board-center";
+  aboveBoardRow.append(aboveBoardRowCenter);
+  const aboveBoardRowRight = document.createElement("div");
+  aboveBoardRowRight.id = "above-board-right";
+  aboveBoardRow.append(aboveBoardRowRight);
+  mainHtml.append(aboveBoardRow);
+
+  // TODO: replace this placeholder item w/ actual button for user data menu
+  const userMenuButton = document.createElement("button");
+  userMenuButton.innerText = "Menu?";
+  userMenuButton.id = "user-menu";
+  userMenuButton.className = "btn btn-secondary";
+  aboveBoardRowRight.append(userMenuButton);
+
+  // placeholder for board while generating (spinner & cancel button)
   const size = Number(sizeParam);
   const saved = resumableSave(size);
   const controller = new AbortController();
   const status = newStatus(size, controller);
-  app.append(status.html);
+  mainHtml.append(status.html);
   preload();
+
+  // Placed as #new-game's DOM sibling once both exist — see the finally
+  // block below — so the two read as a related pair: "start fresh at a new
+  // size" next to "restart this exact board". Declared out here (rather than
+  // inside the try block, where it's actually created) so finally can still
+  // see it; stays undefined on a generation failure, when there's no board
+  // to restart and so nothing to pair #new-game with.
+  let startOverButton: HTMLButtonElement | undefined;
 
   try {
     // A resumable save pins the seed so generation reproduces the exact same
     // region/queen layout; player progress (marks, guesses, elapsed time) is
     // then re-applied on top of that freshly generated board below.
     const board = await newBoard(size, saved?.seed ?? seed, controller.signal);
-    app.append(board.html);
+    aboveBoardRowCenter.append(board.htmlHud);
+
+    mainHtml.append(board.htmlBoard);
 
     if (saved !== null) {
       board.state.forEach((row, r) =>
-        row.forEach((cell, c) => cell.restore(saved.cells[r][c].state, saved.cells[r][c].frozen)),
+        row.forEach((cell, c) =>
+          cell.restore(saved.cells[r][c].state, saved.cells[r][c].frozen),
+        ),
       );
       board.game.guessesLeft = saved.guessesLeft;
       board.game.queensFound = saved.queensFound;
@@ -166,12 +209,45 @@ async function main(): Promise<void> {
     // from zero — still running if play was in progress, frozen if it had
     // already ended.
     const timer = newTimer();
-    board.game.html.insertAdjacentElement("afterend", timer.html);
+    board.htmlHud.insertAdjacentElement("beforeend", timer.html);
     if (saved !== null) {
       timer.restore(saved.elapsedMs, saved.gameState === 0);
     } else {
       timer.start();
     }
+
+    // Only offered once the board actually exists (i.e. from here on, not
+    // during the loading/status view above, and not at all if generation
+    // fails below) — before that there's no resolved board-id to put in a
+    // link, so a link that only sometimes works isn't worth showing.
+    const share = newShareButton({
+      getUrl: () =>
+        buildShareUrl(size, board.seed, location.origin, location.pathname),
+    });
+    aboveBoardRowLeft.append(share.html);
+
+    // "Start over": resets progress on this exact board (same seed) rather
+    // than picking a different one, distinct from both "New game" entry
+    // points (options drawer, gameover's "New game, same size") — see
+    // options.ts's startOver() for the abandon-then-navigate side effect,
+    // which reuses this same page's whole generate-and-mount path via a full
+    // navigation back to this board's own `?size=`+`?board-id=`. Only
+    // offered while a game is genuinely in progress — hidden below once the
+    // game ends (live, via onEnd) or if it had already ended before this
+    // page even loaded (the resumed-save branch further down); nothing is
+    // "in progress" left to abandon at that point, and gameover's own modal
+    // takes over the board anyway. Not inserted into the DOM here — see the
+    // finally block below, where it's placed next to #new-game.
+    //
+    // Assigned to the outer `startOverButton` right below so finally can
+    // place it, but this local const is what the closures further down
+    // (onEnd, the resumed-save branch) actually close over — TS can't carry
+    // definite-assignment narrowing into a closure for a mutable outer
+    // binding, so those reference this const instead of the outer variable.
+    const startOverBtn = newStartOverButton({
+      onConfirm: () => startOver(size, board.seed),
+    });
+    startOverButton = startOverBtn;
 
     const gameOver = newGameOver({
       onNewGame: () => goToSize(size),
@@ -179,7 +255,21 @@ async function main(): Promise<void> {
     });
     app.append(gameOver.html);
 
-    const persist = (): void => saveGame(snapshot(board, timer));
+    // Checkpoints both SavedGame (single-slot "resume where I left off") and
+    // this attempt's history entry (see persistence/history.ts) on the same
+    // cadence — every cell interaction plus the two "player might be about
+    // to leave" signals below, and once more at game end via onEnd. History
+    // status is derived from the live game state, so a still-playing
+    // checkpoint always writes "playing" and the very last persist() after
+    // onEnd (game.state already flipped to 1/2 by then) writes the real
+    // won/lost outcome — no separate "finalize" call needed here.
+    const persist = (): void => {
+      saveGame(snapshot(board, timer));
+      recordAttempt(board.game.size, board.seed, {
+        status: statusFromGameState(board.game.state),
+        elapsedMs: timer.elapsedMs(),
+      });
+    };
 
     board.game.onEnd((state) => {
       timer.stop();
@@ -188,6 +278,9 @@ async function main(): Promise<void> {
       // visibilitychange listener rather than leaving it dangling until a
       // full page navigation cleans it up.
       timer.dispose();
+      // Nothing "in progress" left to abandon once the game has actually
+      // ended — see startOverButton's own comment above.
+      startOverBtn.hidden = true;
       // Persist the final state so a reload re-shows the same game-over
       // modal instead of silently starting a new board — the save is only
       // cleared by an explicit "new game" action (see options.ts's goToSize).
@@ -197,7 +290,9 @@ async function main(): Promise<void> {
     if (saved !== null && saved.gameState !== 0) {
       // The saved game was already won/lost — nothing to play, so go
       // straight to the game-over modal rather than a live, interactive
-      // (but pointless) restored board sitting behind it.
+      // (but pointless) restored board sitting behind it. Same reasoning as
+      // onEnd above: nothing in progress to offer "Start over" on.
+      startOverBtn.hidden = true;
       gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs });
     } else {
       // Persist on every interaction with a cell (marking, eliminating, or
@@ -214,7 +309,7 @@ async function main(): Promise<void> {
       // and beforeunload itself (covers desktop reload/close reliably) — see
       // persistence.ts's abandonGame() for how starting a new game avoids
       // this beforeunload handler racing that intentional abandonment.
-      board.html.addEventListener("click", persist);
+      board.htmlBoard.addEventListener("click", persist);
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) persist();
       });
@@ -242,8 +337,19 @@ async function main(): Promise<void> {
     app.append(message);
   } finally {
     status.dispose();
+    // put both buttons in a row
+    const belowBoardRow = document.createElement("div");
+    belowBoardRow.id = "below-board";
+    app.append(belowBoardRow);
     // Offered either way: after a failure it is the way to pick another size.
-    app.append(newGameButton());
+    const newGame = newGameButton();
+    belowBoardRow.append(newGame);
+    // Paired as #new-game's immediate DOM sibling — see startOverButton's
+    // own comment above for why it's only ever defined on a successful
+    // generation, and hidden (not omitted) once nothing is in progress.
+    if (startOverButton !== undefined) {
+      belowBoardRow.append(startOverButton);
+    }
   }
 }
 

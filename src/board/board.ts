@@ -2,13 +2,15 @@ import type { Cell } from "../cell/cell";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
+import cellClasses from "../cell/cell.module.css";
 
 export interface Board {
   state: Cell[][];
   /** The seed actually used to generate this board — resolved even if the caller omitted one. */
   seed: number;
   game: Game;
-  html: HTMLDivElement;
+  htmlBoard: HTMLDivElement;
+  htmlHud: HTMLDivElement;
 }
 
 /**
@@ -43,20 +45,53 @@ export interface Coord {
  */
 export function cellsBetween(from: Coord, to: Coord): Coord[] | null {
   if (from.row === to.row) {
-    const [lo, hi] = from.col <= to.col ? [from.col, to.col] : [to.col, from.col];
+    const [lo, hi] =
+      from.col <= to.col ? [from.col, to.col] : [to.col, from.col];
     const cells: Coord[] = [];
     for (let col = lo; col <= hi; col++) cells.push({ row: from.row, col });
     return cells;
   }
 
   if (from.col === to.col) {
-    const [lo, hi] = from.row <= to.row ? [from.row, to.row] : [to.row, from.row];
+    const [lo, hi] =
+      from.row <= to.row ? [from.row, to.row] : [to.row, from.row];
     const cells: Coord[] = [];
     for (let row = lo; row <= hi; row++) cells.push({ row, col: from.col });
     return cells;
   }
 
   return null;
+}
+
+/**
+ * Marks each cell's right/bottom edge (via cell.module.css's
+ * .regionEdgeRight/.regionEdgeBottom) when the neighbor on that side belongs
+ * to a different region (`.group`), so a region-crossing edge gets a bolder,
+ * darker line distinct from the lighter uniform hairline every other
+ * internal gap gets (#board's --board-gap/--color-grid in style.css).
+ *
+ * Only ever compares a cell to its actual right/bottom neighbor within the
+ * grid — a cell on the board's last column/row has none there, so the
+ * board's own outer edge never gets this treatment; it isn't a boundary
+ * between two regions, just the edge of the grid. Checking only right+bottom
+ * (not left+top too) still covers every internal edge in the grid exactly
+ * once, from the cell on that edge's up/left side, without double-processing
+ * the same boundary from both sides.
+ */
+export function applyRegionBoundaries(cells: Cell[][]): void {
+  cells.forEach((row, r) => {
+    row.forEach((cell, c) => {
+      const right = row[c + 1];
+      if (right !== undefined && right.group !== cell.group) {
+        cell.html.classList.add(cellClasses.regionEdgeRight);
+      }
+
+      const below = cells[r + 1]?.[c];
+      if (below !== undefined && below.group !== cell.group) {
+        cell.html.classList.add(cellClasses.regionEdgeBottom);
+      }
+    });
+  });
 }
 
 interface Anchor {
@@ -87,12 +122,28 @@ interface Anchor {
  * click handling (normal single click, and its debounced double-click
  * commit) on a cell that isn't actually part of a shift/drag gesture — see
  * the comments at each interception point below for exactly how.
+ *
+ * Returns a dispose function that removes the two listeners attached to
+ * `window` (see the mouse-drag block for why they're on window rather than
+ * `board`). newBoard() doesn't bother calling it — a real page only ever
+ * builds one board per load, and a full navigation tears everything down —
+ * but it matters for tests, which build many short-lived boards in the same
+ * long-lived jsdom/happy-dom `window` and would otherwise leak a stale
+ * listener (closing over that test's now-discarded cells) into every test
+ * that runs afterward.
  */
-export function attachRangeGestures(board: HTMLDivElement, cells: Cell[][]): void {
+export function attachRangeGestures(
+  board: HTMLDivElement,
+  cells: Cell[][],
+): () => void {
   const coordOf = new Map<HTMLElement, Coord>();
-  cells.forEach((row, r) => row.forEach((cell, c) => coordOf.set(cell.html, { row: r, col: c })));
+  cells.forEach((row, r) =>
+    row.forEach((cell, c) => coordOf.set(cell.html, { row: r, col: c })),
+  );
 
-  function hitFor(target: EventTarget | null): { coord: Coord; cell: Cell } | null {
+  function hitFor(
+    target: EventTarget | null,
+  ): { coord: Coord; cell: Cell } | null {
     if (!(target instanceof HTMLElement)) return null;
     const coord = coordOf.get(target);
     // Cell buttons render plain text only (see cell.ts's stateToView), so a
@@ -102,17 +153,112 @@ export function attachRangeGestures(board: HTMLDivElement, cells: Cell[][]): voi
     return { coord, cell: cells[coord.row][coord.col] };
   }
 
-  function hitAtPoint(x: number, y: number): { coord: Coord; cell: Cell } | null {
+  function hitAtPoint(
+    x: number,
+    y: number,
+  ): { coord: Coord; cell: Cell } | null {
     return hitFor(document.elementFromPoint(x, y));
   }
 
-  // --- shift+click range toggle -------------------------------------------
+  /**
+   * Shared "cell that the pointer has actually reached and marks, one range
+   * marking pass at a time" state machine, driven by touch-drag and
+   * mouse-drag — the only difference between the two is what DOM events feed
+   * it and how each stops its trailing click/tap from double-toggling the
+   * endpoint (see the touch and mouse blocks below for that half).
+   */
+  function createDragTracker() {
+    let target: 0 | 1 | null = null;
+    let start: { coord: Coord; cell: Cell } | null = null;
+    let moved = false;
+    const marked = new Set<string>();
 
+    function markIfNew(hit: { coord: Coord; cell: Cell } | null): void {
+      if (hit === null || target === null) return;
+      const key = `${hit.coord.row},${hit.coord.col}`;
+      if (marked.has(key)) return;
+      marked.add(key);
+      if (!hit.cell.frozen) hit.cell.mark(target);
+    }
+
+    return {
+      begin(hit: { coord: Coord; cell: Cell } | null): void {
+        start = hit;
+        moved = false;
+        marked.clear();
+        // A frozen start point has no 0/1 value to derive a drag's target
+        // polarity from — same rule as a shift+click anchor above — so the
+        // whole gesture stays inert (target left null; see markIfNew).
+        target =
+          hit !== null && !hit.cell.frozen
+            ? hit.cell.state === 1
+              ? 0
+              : 1
+            : null;
+      },
+      /** Returns true if this move is part of an active drag (so the caller should treat the event as consumed — e.g. preventDefault). */
+      move(hit: { coord: Coord; cell: Cell } | null): boolean {
+        if (target === null) return false;
+
+        if (!moved) {
+          // Only commit to treating this as a real drag once the pointer has
+          // reached a genuinely different cell than where it started — not
+          // merely because a move event fired at all. A mouse in particular
+          // can emit mousemove events from sub-pixel sensor jitter during
+          // what's really a stationary click; requiring an actual cell
+          // change is a cheap, reliable way to tell the two apart without a
+          // magic pixel-distance threshold. (Touch is generally stricter
+          // about this already, but the same check costs nothing extra and
+          // keeps both gestures' "is this really a drag" rule identical.)
+          if (
+            hit === null ||
+            start === null ||
+            (hit.coord.row === start.coord.row &&
+              hit.coord.col === start.coord.col)
+          ) {
+            return false;
+          }
+          moved = true;
+          markIfNew(start);
+        }
+
+        markIfNew(hit);
+        return true;
+      },
+      /** Ends the session; returns true if real movement happened (so the caller should suppress the trailing click/tap). */
+      end(): boolean {
+        const wasDrag = moved;
+        target = null;
+        start = null;
+        moved = false;
+        marked.clear();
+        return wasDrag;
+      },
+    };
+  }
+
+  // --- shift+click range toggle, and mouse-drag's trailing-click guard ----
+  //
+  // suppressNextClick is set by the mouse-drag block further down, right
+  // before a drag's mouseup — mouse's native `click` event fires after
+  // mouseup no matter what (unlike touch, preventDefault on mouseup/mouseup
+  // doesn't stop it), so the only way to stop that trailing click from also
+  // toggling/committing the drag's endpoint cell via cell.ts's own handler
+  // is to swallow it here, in the same capture-phase listener that already
+  // has to make this exact call for shift+click.
+
+  let suppressNextClick = false;
   let anchor: Anchor | null = null;
 
   board.addEventListener(
     "click",
     (event) => {
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        event.stopPropagation();
+        return;
+      }
+
       const hit = hitFor(event.target);
       if (hit === null) return;
 
@@ -182,40 +328,14 @@ export function attachRangeGestures(board: HTMLDivElement, cells: Cell[][]): voi
   // travels, not constrained to a row/column (see this function's doc
   // comment for why that's not the same shape as shift+click).
 
-  let dragTarget: 0 | 1 | null = null;
-  let dragStart: { coord: Coord; cell: Cell } | null = null;
-  let dragMoved = false; // true once real movement is seen — see touchmove below
-  const dragged = new Set<string>(); // "row,col" already marked this drag
-
-  function markIfNew(hit: { coord: Coord; cell: Cell } | null): void {
-    if (hit === null || dragTarget === null) return;
-    const key = `${hit.coord.row},${hit.coord.col}`;
-    if (dragged.has(key)) return;
-    dragged.add(key);
-    if (!hit.cell.frozen) hit.cell.mark(dragTarget);
-  }
-
-  function endDrag(): void {
-    dragTarget = null;
-    dragStart = null;
-    dragMoved = false;
-    dragged.clear();
-  }
+  const touchDrag = createDragTracker();
 
   board.addEventListener(
     "touchstart",
     (event) => {
       const touch = event.touches[0];
       if (touch === undefined) return;
-      dragStart = hitAtPoint(touch.clientX, touch.clientY);
-      dragMoved = false;
-      dragged.clear();
-      // A frozen start point has no 0/1 value to derive a drag's target
-      // polarity from — same rule as a shift+click anchor above — so the
-      // whole gesture stays inert (dragTarget left null; see markIfNew).
-      dragTarget = dragStart !== null && !dragStart.cell.frozen
-        ? (dragStart.cell.state === 1 ? 0 : 1)
-        : null;
+      touchDrag.begin(hitAtPoint(touch.clientX, touch.clientY));
       // Marking is deliberately deferred to the first touchmove (below),
       // not done here: a plain tap (touchstart+touchend, no movement) must
       // still reach cell.ts's own click handler completely untouched, for
@@ -229,38 +349,84 @@ export function attachRangeGestures(board: HTMLDivElement, cells: Cell[][]): voi
   board.addEventListener(
     "touchmove",
     (event) => {
-      if (dragTarget === null) return;
       const touch = event.touches[0];
       if (touch === undefined) return;
-
-      if (!dragMoved) {
-        // Now committed to treating this as a drag rather than a tap: mark
-        // the deferred starting cell before the new one the finger has
-        // reached.
-        dragMoved = true;
-        markIfNew(dragStart);
+      if (touchDrag.move(hitAtPoint(touch.clientX, touch.clientY))) {
+        // Keeps the page from scrolling out from under a drag that's
+        // actively marking cells. Requires this listener to be non-passive.
+        event.preventDefault();
       }
-
-      markIfNew(hitAtPoint(touch.clientX, touch.clientY));
-      // Keeps the page from scrolling out from under a drag that's
-      // actively marking cells. Requires this listener to be non-passive.
-      event.preventDefault();
     },
     { passive: false },
   );
 
   board.addEventListener("touchend", (event) => {
-    if (dragMoved) {
+    if (touchDrag.end()) {
       // A real drag happened, so the browser's tap-synthesized click for
       // this touch must not also reach cell.ts's click handler — that
       // would toggle/commit the last-touched cell a second time on top of
       // what the drag above already did to it.
       event.preventDefault();
     }
-    endDrag();
   });
 
-  board.addEventListener("touchcancel", endDrag);
+  board.addEventListener("touchcancel", () => touchDrag.end());
+
+  // --- mouse-drag marking --------------------------------------------------
+  //
+  // Same gesture and rules as touch-drag above (opposite-of-first-cell
+  // polarity, path-shaped not row/column-constrained, frozen cells refused
+  // as the anchor and skipped along the path) — just driven by mouse events
+  // instead of touch ones, and with a different trick for not double-firing
+  // on the endpoint cell: touch can preventDefault its way out of the
+  // trailing synthesized click, but a mouse's native `click` always fires
+  // after `mouseup` no matter what, so a drag's end instead sets
+  // suppressNextClick (declared above, alongside the shift+click listener
+  // that actually consumes it) for the capture-phase click listener to
+  // swallow.
+  //
+  // mousemove/mouseup are attached to `window`, not `board`: a real drag can
+  // end (button released) after the pointer has left the board entirely —
+  // attaching only to `board` would miss that release and leave the drag
+  // considered "still active" indefinitely.
+  //
+  // A drag that happens to start while Shift is held is treated as a plain
+  // drag, not a combined gesture — mousedown doesn't check event.shiftKey at
+  // all. "Shift+drag" isn't part of this feature's spec as a distinct
+  // gesture, and this is the simplest coherent behavior for what's really an
+  // unspecified combination: mouse-drag already runs entirely on mousedown
+  // before any click fires, so a drag that occurs takes priority regardless
+  // of Shift's state — the trailing click gets swallowed by
+  // suppressNextClick before the shift+click branch ever gets a chance to
+  // look at it.
+
+  const mouseDrag = createDragTracker();
+  let mouseDown = false;
+
+  board.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return; // primary button only
+    mouseDown = true;
+    mouseDrag.begin(hitFor(event.target));
+  });
+
+  function onMouseMove(event: MouseEvent): void {
+    if (!mouseDown) return;
+    mouseDrag.move(hitFor(event.target));
+  }
+
+  function onMouseUp(event: MouseEvent): void {
+    if (!mouseDown || event.button !== 0) return;
+    mouseDown = false;
+    if (mouseDrag.end()) suppressNextClick = true;
+  }
+
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+
+  return () => {
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
 }
 
 export async function newBoard(
@@ -269,7 +435,14 @@ export async function newBoard(
   signal?: AbortSignal,
 ): Promise<Board> {
   const game = newGame(size, maxGuessesFor(size));
-  const { cells, seed: resolvedSeed } = await generateCells(game, size, seed, signal);
+  const { cells, seed: resolvedSeed } = await generateCells(
+    game,
+    size,
+    seed,
+    signal,
+  );
+
+  applyRegionBoundaries(cells);
 
   const board: HTMLDivElement = document.createElement("div");
   board.id = "board";
@@ -292,9 +465,11 @@ export async function newBoard(
   hud.id = "hud";
   hud.append(game.html);
 
-  const html: HTMLDivElement = document.createElement("div");
-  html.append(hud);
-  html.append(board);
-
-  return { state: cells, seed: resolvedSeed, game, html };
+  return {
+    state: cells,
+    seed: resolvedSeed,
+    game,
+    htmlBoard: board,
+    htmlHud: hud,
+  };
 }

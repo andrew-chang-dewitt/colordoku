@@ -1,20 +1,119 @@
 :root {
-  --color-group-0: #75eab6;
-  --color-group-1: #47a350;
-  --color-group-2: #77d1fd;
-  --color-group-3: #ae73fb;
-  --color-group-4: #76f014;
-  --color-group-5: #fd5917;
-  --color-group-6: #c6dbae;
-  --color-group-7: #fd4e8b;
-  --color-group-8: #b8e450;
-  --color-group-9: #628df2;
-  --color-group-10: #f7c5f1;
-  --color-group-11: #fe16f4;
-  --color-group-12: #ac85a3;
-  --color-group-13: #89975b;
-  --color-group-14: #f7931e;
-  --color-group-15: #f4d403;
+  /* Region colors are deliberately *not* hand-picked hex values: each one is
+   * the original hand-authored hue run through the same color-mix() recipe
+   * (see --group-desaturate below), so all 16 lose saturation by the same
+   * proportional amount. That keeps the desaturation a single reviewable
+   * knob instead of 32 independent judgment calls, and — because every group
+   * is pulled toward the same neutral gray by the same percentage — the
+   * *relative* distinctness between adjacent hues is preserved (mixing
+   * toward a shared point doesn't change which two colors are closer/farther
+   * from each other, it just scales all the distances down together). Mixing
+   * happens in oklch rather than srgb: reducing chroma in a perceptually
+   * uniform space desaturates without the incidental lightness/hue drift
+   * srgb mixing introduces.
+   *
+   * Region colors are backgrounds now, not the visual focus — see
+   * cell.module.css's .found/.error, which stay saturated and are the thing
+   * a player's eye should land on. */
+  --group-desaturate: 78%; /* fraction of the original hue kept; rest is neutral gray */
+
+  --color-group-0-raw: #75eab6;
+  --color-group-1-raw: #47a350;
+  --color-group-2-raw: #77d1fd;
+  --color-group-3-raw: #ae73fb;
+  --color-group-4-raw: #76f014;
+  --color-group-5-raw: #fd5917;
+  --color-group-6-raw: #c6dbae;
+  --color-group-7-raw: #fd4e8b;
+  --color-group-8-raw: #b8e450;
+  --color-group-9-raw: #628df2;
+  --color-group-10-raw: #f7c5f1;
+  --color-group-11-raw: #fe16f4;
+  --color-group-12-raw: #ac85a3;
+  --color-group-13-raw: #89975b;
+  --color-group-14-raw: #f7931e;
+  --color-group-15-raw: #f4d403;
+
+  --color-group-0: color-mix(
+    in oklch,
+    var(--color-group-0-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-1: color-mix(
+    in oklch,
+    var(--color-group-1-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-2: color-mix(
+    in oklch,
+    var(--color-group-2-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-3: color-mix(
+    in oklch,
+    var(--color-group-3-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-4: color-mix(
+    in oklch,
+    var(--color-group-4-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-5: color-mix(
+    in oklch,
+    var(--color-group-5-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-6: color-mix(
+    in oklch,
+    var(--color-group-6-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-7: color-mix(
+    in oklch,
+    var(--color-group-7-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-8: color-mix(
+    in oklch,
+    var(--color-group-8-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-9: color-mix(
+    in oklch,
+    var(--color-group-9-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-10: color-mix(
+    in oklch,
+    var(--color-group-10-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-11: color-mix(
+    in oklch,
+    var(--color-group-11-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-12: color-mix(
+    in oklch,
+    var(--color-group-12-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-13: color-mix(
+    in oklch,
+    var(--color-group-13-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-14: color-mix(
+    in oklch,
+    var(--color-group-14-raw) var(--group-desaturate),
+    gray
+  );
+  --color-group-15: color-mix(
+    in oklch,
+    var(--color-group-15-raw) var(--group-desaturate),
+    gray
+  );
 
   --color-mark: black;
   --color-queen: #b8860b;
@@ -23,26 +122,42 @@
   --color-surface: #ffffff;
   --color-on-surface: #101010;
   --color-border: #c8c8c8;
+  /* Region-boundary hairline (see #board's --board-gap/background-color):
+   * deliberately darker/heavier than --color-border, which is shared with
+   * lighter chrome (modal border, spinner ring) that shouldn't follow suit.
+   * Mixed toward --color-on-surface rather than picked as a flat gray so it
+   * still darkens appropriately if the surface tokens ever change. */
+  --color-grid: color-mix(
+    in srgb,
+    var(--color-on-surface) 55%,
+    var(--color-border)
+  );
+
+  --layout-gap: 1em;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-group-0: #505f76;
-    --color-group-1: #bb41c5;
-    --color-group-2: #631e62;
-    --color-group-3: #2b72e7;
-    --color-group-4: #1a119b;
-    --color-group-5: #61812e;
-    --color-group-6: #04451b;
-    --color-group-7: #ec102f;
-    --color-group-8: #660616;
-    --color-group-9: #18857f;
-    --color-group-10: #b84529;
-    --color-group-11: #9f6c3b;
-    --color-group-12: #e21c7a;
-    --color-group-13: #4e380b;
-    --color-group-14: #996599;
-    --color-group-15: #7212ff;
+    --color-group-0-raw: #505f76;
+    --color-group-1-raw: #bb41c5;
+    --color-group-2-raw: #631e62;
+    --color-group-3-raw: #2b72e7;
+    --color-group-4-raw: #1a119b;
+    --color-group-5-raw: #61812e;
+    --color-group-6-raw: #04451b;
+    --color-group-7-raw: #ec102f;
+    --color-group-8-raw: #660616;
+    --color-group-9-raw: #18857f;
+    --color-group-10-raw: #b84529;
+    --color-group-11-raw: #9f6c3b;
+    --color-group-12-raw: #e21c7a;
+    --color-group-13-raw: #4e380b;
+    --color-group-14-raw: #996599;
+    --color-group-15-raw: #7212ff;
+
+    /* Same recipe as the light scheme above (see --group-desaturate); the
+     * --color-group-N variables inherit the color-mix() expressions from
+     * :root and just pick up these -raw values instead. */
 
     --color-mark: white;
     --color-queen: #ffd60a;
@@ -51,6 +166,11 @@
     --color-surface: #1e1e1e;
     --color-on-surface: #f0f0f0;
     --color-border: #4a4a4a;
+    --color-grid: color-mix(
+      in srgb,
+      var(--color-on-surface) 55%,
+      var(--color-border)
+    );
   }
 }
 
@@ -99,8 +219,13 @@ body {
    * background — it pops harder than a "primary action" button should next
    * to otherwise-plain chrome. Blending in a little of the surface color
    * softens it while keeping enough contrast to still read as primary. */
-  background-color: color-mix(in srgb, var(--color-on-surface) 85%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-on-surface) 85%, var(--color-surface));
+  background-color: color-mix(
+    in srgb,
+    var(--color-on-surface) 85%,
+    var(--color-surface)
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--color-on-surface) 85%, var(--color-surface));
   font-weight: bold;
 }
 
@@ -162,26 +287,6 @@ button.group-15 {
 #app > div {
   width: fit-content;
   margin-inline: auto;
-}
-
-/* main.ts's newGameButton() — sits directly under the board (or under the
- * error message on a failed generation). Centered like the rest of the
- * app's chrome, with real breathing room from the board above and the
- * viewport edges on every side, rather than sitting flush at zero padding. */
-#new-game {
-  display: block;
-  margin: 1.25rem auto 1.5rem;
-}
-
-/* Guess pips plus whatever else main.ts appends alongside them (currently the
- * timer) — one column of chrome, consistently spaced and centered above the
- * board regardless of how many pieces end up in it. */
-#hud {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0.75rem 0 1rem;
 }
 
 /* Generation-in-progress view (main.ts's newStatus()). Shown for every size
@@ -256,7 +361,7 @@ button.group-15 {
    * should not shrink to invisibility on a 16x16 phone board nor balloon on a
    * 4x4 desktop one. Being constants also keeps the fit maths below linear —
    * a gap that depended on --cell-size would make --cell-size self-referential. */
-  --board-gap: 0.1rem;
+  --board-gap: 0.16rem;
   --board-pad: 0.2rem;
 
   /* Everything in the grid's width/height that is not cell: the gaps between
@@ -302,11 +407,12 @@ button.group-15 {
   display: grid;
   grid-template-columns: repeat(var(--board-size, 4), var(--cell-size));
   gap: var(--board-gap);
-  /* Was a hardcoded `darkgray` that stayed identical in both themes; reusing
-   * --color-border ties the frame/gridlines to the same token the modal's
-   * border and the status spinner's ring already use, so it darkens with the
-   * rest of the chrome in dark mode instead of sitting there unchanged. */
-  background-color: var(--color-border);
+  /* --color-grid (not --color-border): the region-boundary hairline needs to
+   * read as heavier/darker than ordinary chrome borders now that the region
+   * colors themselves are more muted, without darkening the modal border /
+   * spinner ring that still share --color-border. See --color-grid's
+   * definition above. */
+  background-color: var(--color-grid);
   border-radius: 0.4rem;
   /* Same understated "lifted off the page" treatment as .modal's box-shadow,
    * scaled down: this chrome is permanent rather than transient, so it should
@@ -317,4 +423,55 @@ button.group-15 {
   overflow: hidden;
   width: fit-content;
   padding: var(--board-pad);
+}
+
+/* Guess pips plus whatever else main.ts appends alongside them (currently the
+ * timer) — one column of chrome, consistently spaced and centered above the
+ * board regardless of how many pieces end up in it. */
+#hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 1rem;
+}
+
+/* main.ts's newGameButton() — sits directly under the board (or under the
+ * error message on a failed generation). Centered like the rest of the
+ * app's chrome, with real breathing room from the board above and the
+ * viewport edges on every side, rather than sitting flush at zero padding. */
+#new-game {
+  margin: 1.25rem auto 1.5rem;
+}
+
+#above-board {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-areas: "left center right";
+  gap: var(--layout-gap);
+
+  margin-top: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+#above-board-left {
+  grid-area: left;
+}
+#above-board-center {
+  grid-area: center;
+}
+#above-board-right {
+  grid-area: right;
+  display: flex;
+  justify-content: end;
+  align-items: start;
+}
+
+#below-board {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: var(--layout-gap);
+  margin-top: 1.25rem;
+  margin-bottom: 1.5rem;
 }

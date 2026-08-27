@@ -146,13 +146,114 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
 
 ### TODO
 
-- [ ] UI to start a new game
-- [ ] UI indicating a game was won or lost
+> legend:
+>
+> - [ ] incomplete task #with-tag-or-topic
+> - [/] in progress
+> - [x] complete
+> - [?] unsure of status, needs investigation to determine what current status is
+> - [!] won't complete
+> - [i] needs investigation to determine if needed
+>   - [ ] subtask (can have all status markers in [ ] as parent tasks, & can
+>         have own subtasks too)
+
 - [x] board generation module
-- [ ] UI for giving a board size & generating a board to match
-- [ ] make the largest boards practical — generation discards a whole layout
-      whenever refinement gets stuck, and the restart count climbs sharply past
-      13 (a 14x14 needed 282 restarts in one sample)
-- [ ] a difficulty modifier that can influence board generation & max number of
-      incorrect guesses allowed
-- [ ] long term score tracking (using localstate)
+- [x] UI to start a new game
+  - [x] difficulty modifier UI
+- [x] UI for giving a board size & generating a board to match
+- [?] make the largest boards practical — generation discards a whole layout
+  whenever refinement gets stuck, and the restart count climbs sharply past
+  13 (a 14x14 needed 282 restarts in one sample)
+- [ ] #board-generation a difficulty modifier in board generation module that
+      can influence board generation & max number of incorrect guesses allowed
+- [/] UI indicating a game was won or lost
+  - [ ] improve win UI by making it a little more celebratory, maybe add things
+        like a confetti animation popping in from the sides angled up at 45ish
+        degree angles then falling down behind the modal in the background
+    - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
+          loss? needs investigation on how losses factor into score first...) &
+          show placement w/in top 3-5 if in that range, otherwise show top 3-5
+          above user's new ranking & score
+  - [ ] ask user if they want to try again on a loss
+  - [ ] ask user if they want to share board & their completion time on win
+  - [ ] on first win, show special version of the win UI modal w/ extra copy
+        celebrating their **first** win & introducing the leaderboard concept while
+        asking if they want to opt in or not (opt in request does not require
+        interaction to move on to next game & no interaction means user has not
+        opted in)
+- [x] share button in board view to share the current board via native share UI
+  - [x] confirm works
+  - [x] move to top left of board view (in same row as timer & guesses
+        remaining counter UI)
+- [/] start over button
+  - [ ] confirm starting over
+  - [x] fix placement (located "next to" new game button now, but in a new line
+        instead of inline w/ it in the same row)
+- [ ] #help help button to view game rules & some strategy tips
+- [ ] #help skippable new user tutorial via a guided first game where modals
+      appear pointing to cells/regions/UI elements explaining the following things:
+  - [ ] first: how to access user profile & mentioning that's where to go to
+        update user information/preferences
+  - [ ] then: walking through example 4x4 game from readme by pointing to
+        cells, then having the user make each move -- this won't be a "real" game &
+        user won't be able to make any move other than the instructed one, so that
+        each situation can be observed & explained to introduce basic concepts &
+        beginning strategy tips -- the user will, however, get an automatic
+        beginning score boost (make it bigger than it usually would be for a 4x4
+        easy game & not at all tied to the completion time, just a fixed amount for
+        all new users who complete the tutorial)
+  - [ ] finally: point out help button at start of first real game
+- [ ] #user-score calculate some sort of "score" value based on board size, difficulty, &
+      completion time
+  - [i] determine how to score losses (are they negative? no score at all?
+    number of attempts to reach a win influences score?)
+  - [ ] track cumulative score over time ranges (today, this week, this month,
+        this year, all time) for local user history
+- [/] #user-data user profile menu button
+  - [x] in the top right of the board view (in same row as timer & guesses
+        remaining counter UI)
+  - [x] visible even when generating a board & in top row still (e.g. spinner,
+        board placeholder, & cancel button all below it)
+  - [ ] opens small drop-down menu for accessing information associated w/
+        user, including the following:
+    - [ ] game history
+    - [ ] user preferences
+    - [ ] leaderboard (if opted in)
+- [/] #history game history persistence - store history of games played in localstate
+  - [?] data persistence
+  - [ ] history button to view previous games (located in user profile menu)
+  - [ ] history view (in drawer?)
+  - [ ] allow filtering & sorting games in history view
+- [ ] #user-score long term score tracking (using localstate)
+  - [ ] button for starting new game on same board as each history entry
+  - [ ] button for sharing game on same board from each history entry
+- [ ] generalize start over confirmation dialog for any time user tries to
+      start a new game while a current game is already active
+- [/] add borders around regions
+- [/] desaturate cell colors a little to leave emphasis on the marks (queen, x,
+  empty)
+- [ ] #timer: pause timer whenever user is in a modal/menu/drawer
+- [ ] #timer: obscure game board (pixelate it maybe?) whenever timer is paused
+- [ ] speed up perception of large board generation by generating boards w/ n >
+      11 in the background when no other compute workers are running. 1 board
+      pregenerated for each of the specified sizes should be enough, this includes
+      a next board of the same size when the user is playing a board of n > 11
+      already. pregenerated boards can be held in memory, or even in localstate for
+      future plays as well so they don't have to be regenerated on every reload.
+- [ ] #leaderboard _long term goal_: global leaderboard of cumulative scores
+      for today & this week.
+  - [ ] THIS MUST BE AN EXPLICIT OPT-IN FEATURE, defaults to users not joining
+        shared leaderboard & then refrains from having users localstate store
+        global leaderboard data & from sharing their data w/ leaderboard.
+  - [ ] look into implementing CRDTs for holding leaderboard data between all
+        users. thinking something that stores leaderboard state in user localstate
+        & uses CRDT update algorithms to ensure eventual consistency when online by
+        fetching updates from other online users & sharing updates as well.
+        leaderboard will likely just be a single week score, user chosen username,
+        location (e.g. country from user-agent), & a count of games played for each
+        participating user.
+  - [i] CRDTs will probably require a critical mass of users before it can
+    guarantee some acceptable amount of delay in getting all updates w/out
+    needing at least 1 dedicated machine always on & connected to provide data.
+    will need to investigate what that critical mass may look like & how to
+    tell if it's been achieved.

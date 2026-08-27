@@ -32,17 +32,90 @@ The front end is vanilla TypeScript + Vite — no framework. Rendering is hand-b
 
 ### TypeScript side
 
-Three factory-function modules, each returning an object literal holding state, an
+Most modules are factory functions, each returning an object literal holding state, an
 `.html` element, and mutator methods:
 
 - `src/game/game.ts` — `newGame(size, max)`: guesses remaining, queens found, and
   `state` (`0` continuing / `1` won / `2` lost). Renders the `<ul>` of guess pips.
 - `src/cell/cell.ts` — `newCell(game, group, queen?)`: one cell. `state` is `0`
-  unmarked / `1` eliminated / `2` queen. Single-click toggles eliminated; double-click
-  commits a guess, then freezes the cell either way.
+  unmarked / `1` eliminated / `2` queen. A guess-committing double-click is detected via
+  its own click-timestamp tracking (`DOUBLE_CLICK_MS` = 350ms confirms a guess;
+  `DUPLICATE_CLICK_MS` = 50ms treats a too-fast second click as a bounced duplicate of
+  the same physical click/tap and ignores it), not the native `dblclick` event — see the
+  comment above those constants for why (OS-controlled timing window, inconsistent touch
+  synthesis across browsers). `cell.module.css`'s `touch-action: manipulation` disables
+  double-tap-to-zoom so it can't race this. Besides the click handler, `restore(state,
+  frozen)` re-hydrates a cell from a `SavedGame` snapshot (bypassing the frozen guard),
+  and `mark(state)` sets 0/1 externally — used by `board.ts`'s range gestures — without
+  touching found/error styling or freezing the cell, so it's never mistaken for a guess.
 - `src/board/board.ts` — `newBoard(size, seed?, signal?)`, **async**. Builds the game
-  HUD and the grid, and sets `--board-size` inline so the CSS grid gets its column
-  count.
+  HUD and the grid, sets `--board-size` inline so the CSS grid gets its column count, and
+  calls `attachRangeGestures(board, cells)` to wire up multi-cell marking: shift+click a
+  pair of cells toggles every non-frozen cell between them (`cellsBetween` computes that
+  inclusive row/column run; a diagonal pair returns `null` and is a no-op), and touch- or
+  mouse-dragging marks every cell the pointer passes over along its actual path (not
+  row/column-constrained). Both gestures share a `createDragTracker()` state machine and
+  take care not to double-fire cell.ts's own click handling on a cell that's actually
+  part of the gesture. `attachRangeGestures` returns a dispose function (removes its
+  `window`-level mouse listeners) — `newBoard()` doesn't call it (one board per page load,
+  a full navigation tears everything down), but tests do, to avoid leaking a listener
+  across jsdom/happy-dom's long-lived `window`.
+- `src/options/options.ts` — `newOptions(config?)`: the new-game `<dialog>` (board-size
+  input, clamped to `MIN_SIZE..MAX_SIZE`). `open({dismissable})` / `close()`; opened
+  non-dismissable when there's no board behind it yet to fall back to (initial load with
+  no `?size=`). `goToSize(size)` is the single choke point every "start a new game at
+  this size" path goes through (this drawer's submit, and gameover's "New game, same
+  size"): it finalizes any in-progress attempt via `history.ts`'s `closeOutInProgress()`,
+  then `persistence.ts`'s `abandonGame()`, then navigates to `?size=N`.
+- `src/gameover/gameover.ts` — `newGameOver({onNewGame, onChangeOptions})`: the win/loss
+  `<dialog>`. `show({state, elapsedMs})` sets won/lost-specific messaging (via
+  `timer.ts`'s `formatElapsed`) and opens it. Unlike `options.ts`'s drawer, Escape and
+  backdrop clicks are always ignored — the player must pick one of the two actions rather
+  than idle on a dead board.
+- `src/timer/timer.ts` — `newTimer()`: the elapsed-time display. `start()` / `stop()` /
+  `elapsedMs()`, plus `restore(elapsedMs, running)` for resuming a saved game (frozen
+  display if the saved game had already ended). Auto-pauses via the Page Visibility API
+  (`document.hidden` / the `visibilitychange` event) rather than window blur/focus —
+  blur/focus also fires when focus moves to another app while the tab stays fully visible
+  on screen (e.g. a Spotlight search), which should *not* pause the timer, whereas
+  `document.hidden` only goes true when the tab is genuinely not visible. `dispose()`
+  removes that listener once the timer is done with (main.ts calls it from the game's
+  `onEnd`).
+- `src/persistence/persistence.ts` — `SavedGame` plus `saveGame` / `loadGame` /
+  `clearGame` / `abandonGame`, backed by one fixed localStorage key
+  (`colordoku:save`) — a single "resume where I left off" slot, not a save-slot system.
+  Stores `size` + `seed` (the layout is cheaply reproducible, see `generate.ts` below)
+  plus player progress: per-cell `state`/`frozen`, guesses left, queens found, elapsed
+  time, win/loss. `abandonGame()` also latches a page-lifetime `abandoned` flag so a
+  stale `beforeunload`-triggered `saveGame()` — which fires *after* the synchronous
+  `location.assign()` in `options.ts`'s `goToSize` has already run — can't resurrect the
+  save that call just cleared.
+- `src/persistence/history.ts` — `recordAttempt(size, seed, {status, elapsedMs})`,
+  `getHistory()`, `clearHistory()`, backed by a separate localStorage key
+  (`colordoku:history`, capped at `MAX_ENTRIES` = 500 total entries, oldest *finalized*
+  ones evicted first — the in-progress entry is never evicted). Unlike `SavedGame`'s
+  single overwritten slot, this accumulates one entry per *attempt* at a given (size,
+  seed) board (`HistoryStatus`: `"playing"` / `"won"` / `"lost"` / `"abandoned"`) and
+  entries are meant to outlive the game they describe. `closeOutInProgress()` — called
+  from `options.ts`'s `goToSize`, before `abandonGame()` clears the SavedGame it reads —
+  finalizes a still-`"playing"` entry as `"abandoned"` so switching boards doesn't leave a
+  phantom in-progress entry behind. Nothing reads `getHistory()` back yet; it exists for a
+  future "past games" view.
+- `src/share/share.ts` — `buildShareUrl(size, boardId, origin, pathname)` (pure) plus
+  `newShareButton({getUrl, title?, text?})`: shares the current board's
+  `?size=&board-id=` link via `navigator.share` where available (mobile browsers,
+  mostly — opens the native share sheet), otherwise copies to the clipboard with a brief
+  on-button "Link copied!" flash. If the Clipboard API itself is unavailable (commonly an
+  insecure, non-HTTPS context) or its permission is denied, it flashes the raw URL long
+  enough to read/select by hand instead of leaving a dead button.
+
+`src/main.ts` wires all of the above together: it decides options-drawer-vs-board from
+`?size=`, resolves a resumable `SavedGame` for the requested size/`?board-id=`
+(`resumableSave`) and re-applies it onto a freshly generated board (`cell.restore`,
+`timer.restore`, `board.game.*`), and owns `persist()` — the single function that calls
+both `saveGame` and `recordAttempt` on every board click plus the `visibilitychange` /
+`beforeunload` "player might be leaving" signals, so both stores stay checkpointed on the
+same cadence.
 
 `src/board/generate.ts` is the bridge to the generator. `generateCells()` posts to one
 or more Web Workers and maps the result through `newCell`; `cellsFromArrays()` is the
@@ -51,13 +124,14 @@ pure, separately-tested half that does the reshaping. `MAX_SIZE` is 16 because
 
 Passing an explicit `seed` to `generateCells`/`newBoard` always resolves through exactly
 one worker, so it's fully reproducible — that's what makes a saved game (see
-`persistence.ts`) or a `?board-id=` URL param reliable. Omitting `seed` asks for a fresh
-board instead: at sizes at or above `SLOW_SIZE`, that races several workers (`raceWidth`,
-capped by `MAX_RACERS` and scaled toward `navigator.hardwareConcurrency`) against
-independently derived seeds (`deriveSeed`) and keeps whichever finishes first, since
-nothing about *which* racer wins ever needs to be reproduced — only the seed the winner
-actually used does, returned as `GeneratedCells.seed`. See `generate.race.test.ts` for
-the pool/race orchestration tests (fake `Worker`, no real wasm).
+`persistence.ts` above) or a `?board-id=` URL param (see `share.ts` above) reliable.
+Omitting `seed` asks for a fresh board instead: at sizes at or above `SLOW_SIZE`, that
+races several workers (`raceWidth`, capped by `MAX_RACERS` and scaled toward
+`navigator.hardwareConcurrency`) against independently derived seeds (`deriveSeed`) and
+keeps whichever finishes first, since nothing about *which* racer wins ever needs to be
+reproduced — only the seed the winner actually used does, returned as
+`GeneratedCells.seed`. See `generate.race.test.ts` for the pool/race orchestration tests
+(fake `Worker`, no real wasm).
 
 ### Rust generator (`generator/`)
 

@@ -4,6 +4,15 @@ import { newCell } from "../cell/cell";
 import { newGame } from "../game/game";
 import { attachRangeGestures, cellsBetween, maxGuessesFor } from "./board";
 
+// attachRangeGestures's mouse-drag handling attaches its mousemove/mouseup
+// listeners to `window` (see its doc comment for why), which — unlike DOM
+// nodes removed via document.body.innerHTML — isn't cleaned up just by
+// clearing the body between tests. Left unaddressed, every test's board
+// would leak a listener closing over that test's now-discarded cells into
+// every later test's `window` mouse events. buildGrid collects each board's
+// disposer here; the top-level afterEach below calls all of them.
+let disposers: Array<() => void> = [];
+
 /**
  * A minimal real board for exercising attachRangeGestures directly, without
  * going through newBoard()'s async wasm/worker generation (which the rest of
@@ -20,9 +29,15 @@ function buildGrid(size: number, queens: Array<[number, number]> = []): { cells:
   const board = document.createElement("div");
   cells.forEach((row) => row.forEach((cell) => board.append(cell.html)));
   document.body.append(board);
-  attachRangeGestures(board, cells);
+  disposers.push(attachRangeGestures(board, cells));
   return { cells, board };
 }
+
+afterEach(() => {
+  disposers.forEach((dispose) => dispose());
+  disposers = [];
+  document.body.innerHTML = "";
+});
 
 function shiftClick(cell: Cell): void {
   cell.html.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
@@ -92,10 +107,6 @@ describe("cellsBetween (shift+click range-toggle geometry)", () => {
 });
 
 describe("attachRangeGestures: shift+click range toggle", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
   it("toggles every cell in a row range, inclusive, from unmarked to eliminated", () => {
     const { cells } = buildGrid(4);
     shiftClick(cells[0][0]);
@@ -194,7 +205,6 @@ describe("attachRangeGestures: touch-drag marking", () => {
   });
 
   afterEach(() => {
-    document.body.innerHTML = "";
     vi.restoreAllMocks();
   });
 
@@ -280,5 +290,107 @@ describe("attachRangeGestures: touch-drag marking", () => {
     expect(cells[0][0].state).toBe(1);
     expect(cells[0][1].state).toBe(1);
     expect(cells[0][2].state).toBe(0); // reached only after the cancel
+  });
+});
+
+describe("attachRangeGestures: mouse-drag marking", () => {
+  // Unlike touch (which needs document.elementFromPoint, since touchmove's
+  // event.target is always the original touch-start element), mouse-drag
+  // reads event.target directly — real mousemove events retarget to
+  // whatever's actually under the cursor. To reproduce that here, each event
+  // is dispatched ON the cell it should appear to be over (bubbles: true, so
+  // it still reaches board's and window's listeners) — dispatching from
+  // `window` or `board` itself would leave event.target as that container,
+  // not the cell, since target isn't settable via the constructor.
+  function fireOn(cell: Cell, type: string, button = 0): void {
+    cell.html.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button }));
+  }
+
+  it("marks every cell the cursor passes over to the opposite of the first cell's value", () => {
+    const { cells } = buildGrid(4);
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][1], "mousemove");
+    fireOn(cells[0][2], "mousemove");
+    fireOn(cells[0][2], "mouseup");
+
+    expect(states(cells[0].slice(0, 3))).toEqual([1, 1, 1]);
+    expect(cells[0][3].state).toBe(0); // never under the cursor, untouched
+  });
+
+  it("a plain click (mousedown+mouseup, no cell change) marks nothing itself — the trailing click still does the toggle", () => {
+    const { cells } = buildGrid(4);
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][0], "mouseup");
+    expect(cells[0][0].state).toBe(0); // the drag machinery alone marks nothing here
+
+    // The real browser fires `click` after mouseup regardless; simulate that.
+    fireOn(cells[0][0], "click");
+    expect(cells[0][0].state).toBe(1); // cell.ts's own handler did this, untouched
+  });
+
+  it("mousemove jitter that never leaves the starting cell does not count as a drag", () => {
+    const { cells } = buildGrid(4);
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][0], "mousemove"); // same cell — jitter, not a drag
+    fireOn(cells[0][0], "mouseup");
+    fireOn(cells[0][0], "click");
+
+    // A real drag would have marked (0,0) to 1 and then swallowed this
+    // trailing click; since jitter isn't a drag, the click reaches cell.ts's
+    // handler normally and does the one toggle a plain click always does.
+    expect(cells[0][0].state).toBe(1);
+  });
+
+  it("suppresses the trailing click on the drag's endpoint cell (no double-toggle)", () => {
+    const { cells } = buildGrid(4);
+    let clickReachedCell = false;
+    cells[0][1].html.addEventListener("click", () => {
+      clickReachedCell = true;
+    });
+
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][1], "mousemove");
+    fireOn(cells[0][1], "mouseup");
+    expect(states(cells[0].slice(0, 2))).toEqual([1, 1]); // the drag itself marked both
+
+    // The real browser's trailing click on the endpoint, simulated here —
+    // capture-phase suppression should stop it before it ever reaches the
+    // cell's own bubble-phase listener (added above) or cell.ts's handler.
+    fireOn(cells[0][1], "click");
+
+    expect(clickReachedCell).toBe(false);
+    expect(cells[0][1].state).toBe(1); // unchanged by a second (would-be) toggle
+  });
+
+  it("skips a frozen cell encountered mid-drag, leaving it untouched", () => {
+    const { cells } = buildGrid(4);
+    cells[0][1].restore(2, true);
+
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][1], "mousemove");
+    fireOn(cells[0][2], "mousemove");
+    fireOn(cells[0][2], "mouseup");
+
+    expect(states(cells[0].slice(0, 3))).toEqual([1, 2, 1]);
+  });
+
+  it("a drag starting on a frozen cell is inert for the whole gesture", () => {
+    const { cells } = buildGrid(4);
+    cells[0][0].restore(2, true);
+
+    fireOn(cells[0][0], "mousedown");
+    fireOn(cells[0][1], "mousemove");
+    fireOn(cells[0][1], "mouseup");
+
+    expect(cells[0][1].state).toBe(0);
+  });
+
+  it("ignores a non-primary button (e.g. right-click drag)", () => {
+    const { cells } = buildGrid(4);
+    fireOn(cells[0][0], "mousedown", 2); // right button
+    fireOn(cells[0][1], "mousemove");
+    fireOn(cells[0][1], "mouseup", 2);
+
+    expect(states(cells[0].slice(0, 2))).toEqual([0, 0]);
   });
 });

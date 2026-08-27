@@ -2,6 +2,10 @@
   --cell-mark-shadow-width: 0.08em;
   --cell-error-shadow-width: 0.16em;
   --cell-queen-shadow-width: 0.32em;
+  /* Fixed rem, not em — same reasoning as #board's --board-gap in style.css:
+   * this is a hairline whose job is to stay legible at both board-size
+   * extremes, not scale with cell content. */
+  --region-edge-width: 0.05rem;
 }
 
 .cell {
@@ -67,4 +71,44 @@
   text-shadow:
     0 0 var(--cell-error-shadow-width) var(--color-mark),
     0 0 var(--cell-error-shadow-width) var(--color-mark);
+}
+
+/* Region-boundary hairline: bolder/darker than the uniform grid gap every
+ * internal edge already gets (#board's --board-gap/--color-grid in
+ * style.css), added only on the specific edge between two cells whose
+ * .group differs — see board.ts's applyRegionBoundaries(), which sets these
+ * classes. This *layers on top of* that uniform hairline rather than
+ * replacing it: the gap's --color-grid background still shows all the way
+ * around every cell, and a region-crossing edge additionally gets this
+ * heavier line right against it on one side.
+ *
+ * inset box-shadow, not a real `border`: it paints inside the cell's own
+ * border box, so it consumes zero layout space and cannot perturb the
+ * responsive --cell-size calc() in style.css the way widening the box with
+ * a border would (verified by measuring rendered cell size against
+ * --cell-size — see this task's verification notes). --color-region-edge is
+ * flat var(--color-on-surface), not another color-mix() blend: it's already
+ * the strongest ink token the app has, so reusing it directly gives the
+ * boldest reasonable contrast against the now-desaturated region colors
+ * without inventing a new maximum-contrast token.
+ *
+ * Only two directions (right/bottom): applyRegionBoundaries() compares each
+ * cell only to its right and bottom neighbor, which covers every internal
+ * edge in the grid exactly once (from the cell on that edge's up/left side)
+ * without double-processing. A cell on the board's own last row/column has
+ * no such neighbor there, so the board's outer perimeter never gets this
+ * treatment — it isn't a boundary between two regions, just the edge of the
+ * grid. The combined selector below merges both shadows for a cell whose
+ * right *and* bottom neighbor both differ, since box-shadow doesn't cascade
+ * additively across separately-applied classes on its own. */
+.regionEdgeRight {
+  box-shadow: inset calc(-1 * var(--region-edge-width)) 0 0 0 var(--color-region-edge);
+}
+.regionEdgeBottom {
+  box-shadow: inset 0 calc(-1 * var(--region-edge-width)) 0 0 var(--color-region-edge);
+}
+.regionEdgeRight.regionEdgeBottom {
+  box-shadow:
+    inset calc(-1 * var(--region-edge-width)) 0 0 0 var(--color-region-edge),
+    inset 0 calc(-1 * var(--region-edge-width)) 0 0 var(--color-region-edge);
 }
