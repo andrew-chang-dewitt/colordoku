@@ -140,3 +140,197 @@ Output: property-style test evidence that your spec converges.
 - Make ranking a deterministic derived view from converged base state
 - Keep merge logic isolated from transport/storage so Rust migration is straightforward later
 - Add a simulator early to validate invariants before UI/network integration
+
+
+# more design notes
+
+It’s feasible, but only if you’re very clear about what kind of leaderboard semantics you’re willing to accept. A CRDT‑based, serverless leaderboard can work beautifully for some game designs — and fall apart for others. The trick is understanding exactly where CRDTs shine and where they fight you.
+
+---
+
+Core takeaway
+
+You can maintain a distributed leaderboard with CRDTs if you accept eventual consistency, tolerate temporary rank disagreements, and design your scoring model so that merges are unambiguous. The moment you need strict ordering guarantees or authoritative anti‑cheat enforcement, CRDTs alone stop being enough.
+
+---
+
+🌐 What is feasible with CRDTs in your game
+
+1. Cumulative scores are easy
+
+A player’s cumulative score is a classic G‑Counter or PN‑Counter CRDT.
+
+• Each device increments its own score.
+• Merging is trivial: take the max per replica and sum.
+• No conflicts, no coordination.
+
+
+This part is perfect for CRDTs.
+
+2. Local slices of the leaderboard
+
+You can maintain:
+
+• The top N players globally
+• A window around the local player (e.g., ±10 ranks)
+
+
+Using a Top‑K CRDT or a custom CRDT that stores:
+
+• (player_id, score, last_update_timestamp)
+• Merges by taking the highest scores and most recent updates
+
+
+This is also feasible.
+
+3. Eventual consistency is acceptable
+
+If players see slightly different rankings for a few seconds or minutes, that’s fine in many casual puzzle games.
+
+---
+
+🚧 Where things get tricky
+
+1. Leaderboards require ordering, and ordering is not a CRDT primitive
+
+CRDTs handle merging well, but not global ordering.
+If two players update scores concurrently:
+
+• Device A might think Player X is #3
+• Device B might think Player X is #4
+• They converge eventually, but not instantly
+
+
+If your game requires strict ordering at all times, CRDTs alone won’t cut it.
+
+2. Cheating becomes much easier
+
+With no authoritative server:
+
+• A malicious client can report arbitrary scores
+• CRDTs will happily merge them
+• You cannot “subtract” or “invalidate” a bad score without special CRDT design
+
+
+If cheating matters, you need:
+
+• A trust model
+• Signed updates
+• Or a lightweight verification authority
+
+
+3. Device churn and offline play complicate things
+
+Players may:
+
+• Go offline for hours
+• Rejoin with stale state
+• Merge large amounts of history
+
+
+You must ensure:
+
+• Efficient gossip
+• Bounded memory
+• Pruning of old replicas
+
+
+4. Top‑K CRDTs can grow large
+
+If you track all players, the CRDT becomes huge.
+You need:
+
+• A bounded CRDT
+• Or a sharded approach
+• Or a “local neighborhood + global top‑N” design
+
+
+---
+
+🧠 Key questions you should answer before committing
+
+Each of these is a decision point for your architecture.
+
+1. How important is strict ranking correctness at every moment?
+
+If “eventual correctness” is fine → CRDTs work.
+If “always correct” is required → you need a server.
+
+2. How important is cheat resistance?
+
+If cheating must be prevented → CRDTs alone are insufficient.
+If cheating is low‑impact → CRDTs are fine.
+
+3. How many players do you expect?
+
+CRDT size grows with:
+
+• Number of players
+• Number of replicas
+• Frequency of updates
+
+
+Small communities → easy
+Large communities → you need careful design
+
+4. Do players need to see the entire leaderboard?
+
+If yes → CRDT becomes large
+If no → store only:
+
+• Top N
+• Local neighborhood
+• Self score
+
+
+5. How often do players go offline?
+
+High offline play → CRDTs shine
+Always‑online → a server might be simpler
+
+---
+
+🧩 Practical design pattern that often works well
+
+A common architecture for serverless leaderboards:
+
+CRDTs store:
+
+• Player cumulative scores (G‑Counter)
+• Top‑K leaderboard slice
+• Local neighborhood slice
+
+
+Each device gossips:
+
+• Its own score
+• Any leaderboard slice it knows
+• Only bounded subsets (not full history)
+
+
+Conflict resolution:
+
+• Highest score wins
+• If scores equal, tie‑break by player ID
+• If updates conflict, use timestamp or vector clock
+
+
+Optional anti‑cheat:
+
+• Signed score updates
+• Score increments only (no arbitrary set)
+• Maximum score per puzzle enforced locally
+
+
+This keeps the system lightweight and robust.
+
+---
+
+## explore next steps
+
+dig deeper into:
+
+• CRDT leaderboard design
+• Top-K CRDT structures
+• Anti_cheat_strategies
+• Gossip_protocol_design
