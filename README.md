@@ -164,20 +164,22 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
 - [x] make the largest boards practical — generation discards a whole layout
       whenever refinement gets stuck, and the restart count climbs sharply past
       13 (a 14x14 needed 282 restarts in one sample)
-- [/] #board-generation a difficulty modifier in board generation module that
+- [x] #board-generation a difficulty modifier in board generation module that
       can influence board generation & max number of incorrect guesses allowed
       (plan: `docs/plans/board-generation-difficulty.md`) — guess-count half
       (Phase 1) done; generation-hardness half (Phase 2) still open
-- [/] UI indicating a game was won or lost
+- [/] #gameover-ui UI indicating a game was won or lost
+      (plan: `docs/plans/gameover-modal-ui.md`)
   - [ ] improve win UI by making it a little more celebratory, maybe add things
         like a confetti animation popping in from the sides angled up at 45ish
         degree angles then falling down behind the modal in the background
-    - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
-          loss? needs investigation on how losses factor into score first...) &
-          show placement w/in top 3-5 if in that range, otherwise show top 3-5
-          above user's new ranking & score
+    - [ ] also add score to win modal
+    - [ ] and if they want to share board & their completion time/score
+  - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
+        loss? needs investigation on how losses factor into score first...) &
+        show placement w/in top 3-5 if in that range, otherwise show top 3-5
+        above user's new ranking & score
   - [ ] ask user if they want to try again on a loss
-  - [ ] ask user if they want to share board & their completion time on win
   - [ ] on first win, show special version of the win UI modal w/ extra copy
         celebrating their **first** win & introducing the leaderboard concept while
         asking if they want to opt in or not (opt in request does not require
