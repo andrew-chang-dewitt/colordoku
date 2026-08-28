@@ -310,6 +310,40 @@ describe("attachRangeGestures: touch-drag marking", () => {
     expect(cells[0][1].state).toBe(1);
     expect(cells[0][2].state).toBe(0); // reached only after the cancel
   });
+
+  it("calls preventDefault on the very first touchmove of a touch that began on a cell — even while still over the starting cell", () => {
+    const { cells, board } = buildGrid(4);
+    place(cells[0][0], 0, 0);
+
+    board.dispatchEvent(touchEvent("touchstart", 0, 0));
+    const move = touchEvent("touchmove", 0, 0); // same point, still over the starting cell
+    board.dispatchEvent(move);
+
+    expect(move.defaultPrevented).toBe(true);
+  });
+
+  it("does not call preventDefault on touchmove when the touch started outside any cell", () => {
+    const { board } = buildGrid(4);
+    // No place() call for (99, 99) — touchstart at an unplaced point
+
+    board.dispatchEvent(touchEvent("touchstart", 99, 99));
+    const move = touchEvent("touchmove", 99, 99);
+    board.dispatchEvent(move);
+
+    expect(move.defaultPrevented).toBe(false);
+  });
+
+  it("calls preventDefault on touchmove for a touch that started on a frozen cell", () => {
+    const { cells, board } = buildGrid(4);
+    cells[0][0].restore(2, true); // frozen
+    place(cells[0][0], 0, 0);
+
+    board.dispatchEvent(touchEvent("touchstart", 0, 0));
+    const move = touchEvent("touchmove", 0, 0);
+    board.dispatchEvent(move);
+
+    expect(move.defaultPrevented).toBe(true);
+  });
 });
 
 describe("attachRangeGestures: mouse-drag marking", () => {

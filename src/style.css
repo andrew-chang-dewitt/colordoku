@@ -391,6 +391,7 @@ button.group-15 {
 
 html {
   overflow-y: hidden;
+  overscroll-behavior: none;
 }
 
 #board {
@@ -486,6 +487,7 @@ html {
   overflow: hidden;
   width: fit-content;
   padding: var(--board-pad);
+  touch-action: none;
 
   margin: 0 auto;
 }

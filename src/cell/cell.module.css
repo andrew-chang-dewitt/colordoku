@@ -21,10 +21,17 @@
 }
 
 .cell {
-  /* Disables double-tap-to-zoom (while keeping normal single-tap behavior)
-   * so a real double-tap doesn't race the browser's own zoom gesture — see
-   * the click-timestamp double-click detection in cell.ts. */
-  touch-action: manipulation;
+  /* Disables all browser-handled touch gestures (panning *and*
+   * zooming) on a cell, not just double-tap-zoom (see the comment this
+   * replaces below for the original narrower reasoning) — a plain
+   * `manipulation` still permits native pan/scroll, which is exactly
+   * what let touch-drag marking lose the gesture to page scroll; `none`
+   * is a superset that also keeps double-tap-zoom disabled. Combined
+   * with board.ts's touchmove preventDefault() (belt-and-suspenders: the
+   * compositor consults touch-action before any JS runs, independent of
+   * preventDefault) and #board's own touch-action: none below.
+   */
+  touch-action: none;
   /* Inherits --cell-size from #board so cells stay square at any board size:
    * the column track is that same variable. */
   height: var(--cell-size, 3em);

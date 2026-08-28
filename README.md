@@ -259,12 +259,12 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       check the saved game is still in progress. Masked in normal play since
       "New game" always goes through the options drawer rather than a raw
       `?size=` navigation, but a bookmarked/typed URL hits it.
-- [ ] #touch-scroll-bug on mobile/touchscreens, touch-and-drag multi-cell
+- [x] #touch-scroll-bug on mobile/touchscreens, touch-and-drag multi-cell
       marking often triggers native page scroll instead of the drag gesture
       (existing `html { overflow-y: hidden; }` isn't sufficient on iOS
-      Safari) — root-caused to delayed `preventDefault()` timing in
-      board.ts's touch handlers plus `touch-action: manipulation` on `.cell`
-      still permitting native panning (plan:
+      Safari) — fixed via `touchStartedOnCell`-gated `preventDefault()`
+      timing in board.ts's touch handlers, `touch-action: none` on `.cell`
+      and `#board`, and `overscroll-behavior: none` on `html` (plan:
       `docs/plans/mobile-touch-drag-scroll.md`)
 - [/] #user-score long term score tracking (using localstate) — see the
   cumulative-tracking subtask above; weekly + all-time done, other ranges open

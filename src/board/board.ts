@@ -238,7 +238,7 @@ export function attachRangeGestures(
               : 1
             : null;
       },
-      /** Returns true if this move is part of an active drag (so the caller should treat the event as consumed — e.g. preventDefault). */
+      /** Returns true if this move is part of an active drag (marking cells along the path). */
       move(hit: { coord: Coord; cell: Cell } | null): boolean {
         if (target === null) return false;
 
@@ -371,13 +371,22 @@ export function attachRangeGestures(
   // comment for why that's not the same shape as shift+click).
 
   const touchDrag = createDragTracker();
+  let touchStartedOnCell = false;
 
   board.addEventListener(
     "touchstart",
     (event) => {
       const touch = event.touches[0];
       if (touch === undefined) return;
-      touchDrag.begin(hitAtPoint(touch.clientX, touch.clientY));
+      const hit = hitAtPoint(touch.clientX, touch.clientY);
+      // Scroll-suppression only cares whether the touch landed on a real
+      // cell at all (frozen or not) — unlike touchDrag.begin()'s target,
+      // which additionally refuses a frozen cell. A drag that starts on a
+      // frozen cell is inert for marking (see createDragTracker's frozen
+      // handling) but the finger is still physically on the board and
+      // should not hand the gesture to the browser's native scroll.
+      touchStartedOnCell = hit !== null;
+      touchDrag.begin(hit);
       // Marking is deliberately deferred to the first touchmove (below),
       // not done here: a plain tap (touchstart+touchend, no movement) must
       // still reach cell.ts's own click handler completely untouched, for
@@ -393,11 +402,13 @@ export function attachRangeGestures(
     (event) => {
       const touch = event.touches[0];
       if (touch === undefined) return;
-      if (touchDrag.move(hitAtPoint(touch.clientX, touch.clientY))) {
-        // Keeps the page from scrolling out from under a drag that's
-        // actively marking cells. Requires this listener to be non-passive.
-        event.preventDefault();
-      }
+      // Suppress native scroll starting on the very first touchmove of a
+      // touch that began on a cell — not deferred until createDragTracker
+      // decides a "real drag" has happened (crossed into a different cell).
+      // Browsers commit to native scroll based on the earliest unprevented
+      // cancelable touchmove; waiting for `moved` to flip is too late.
+      if (touchStartedOnCell) event.preventDefault();
+      touchDrag.move(hitAtPoint(touch.clientX, touch.clientY));
     },
     { passive: false },
   );
@@ -410,9 +421,13 @@ export function attachRangeGestures(
       // what the drag above already did to it.
       event.preventDefault();
     }
+    touchStartedOnCell = false;
   });
 
-  board.addEventListener("touchcancel", () => touchDrag.end());
+  board.addEventListener("touchcancel", () => {
+    touchDrag.end();
+    touchStartedOnCell = false;
+  });
 
   // --- mouse-drag marking --------------------------------------------------
   //
