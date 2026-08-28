@@ -115,6 +115,31 @@
     gray
   );
 
+  /* Confetti's own vivid palette, deliberately separate from
+   * --color-group-N/-raw above: the group -raw values aren't reliably
+   * bright (the dark-scheme set in particular was authored assuming it'd
+   * get desaturated toward gray afterward, so several are quite dark on
+   * their own, e.g. --color-group-4-raw's navy). Confetti wants a fixed,
+   * fully-saturated celebratory set that reads well over either theme's
+   * background, unrelated to the board's legibility-driven desaturation —
+   * so it's defined once here rather than reused from either theme. */
+  --color-confetti-0: #ff3b3b;
+  --color-confetti-1: #ff9f1c;
+  --color-confetti-2: #ffe135;
+  --color-confetti-3: #7ed957;
+  --color-confetti-4: #06d6a0;
+  --color-confetti-5: #00c2ff;
+  --color-confetti-6: #3a86ff;
+  --color-confetti-7: #8338ec;
+  --color-confetti-8: #ff006e;
+  --color-confetti-9: #ff5da2;
+  --color-confetti-10: #ffbe0b;
+  --color-confetti-11: #fb5607;
+  --color-confetti-12: #4cc9f0;
+  --color-confetti-13: #b5179e;
+  --color-confetti-14: #57cc99;
+  --color-confetti-15: #f72585;
+
   --color-mark: black;
   --color-queen: #b8860b;
   --color-error: #d1002f;

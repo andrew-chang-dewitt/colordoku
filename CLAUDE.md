@@ -211,3 +211,8 @@ README's `### TODO` section is the single source of truth for the task backlog
 implementation plans for individual TODO items, one file per task, referenced from the
 TODO line by its `#tag` — write there when a task needs more design than a checkbox
 can hold, but keep the backlog entry itself in README.
+
+Any plan set aside for later (approved-but-deferred, or "come back to this") always
+gets persisted to `docs/plans/` too, even for a spontaneous feature request with no
+README TODO line yet — not left sitting only in the CLI's own single-slot plan-mode
+file, which the next unrelated plan silently overwrites.

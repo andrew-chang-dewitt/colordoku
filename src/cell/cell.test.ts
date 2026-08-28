@@ -127,6 +127,7 @@ describe("cell click handling (debounced double-click)", () => {
     expect(cell.state).toBe(2);
     expect(cell.frozen).toBe(true);
     expect(cell.html.className).toContain(classes.found);
+    vi.advanceTimersByTime(0);
     expect(incFound).toHaveBeenCalledTimes(1);
     expect(incGuess).not.toHaveBeenCalled();
   });
@@ -143,6 +144,7 @@ describe("cell click handling (debounced double-click)", () => {
     expect(cell.state).toBe(1);
     expect(cell.frozen).toBe(true);
     expect(cell.html.className).toContain(classes.error);
+    vi.advanceTimersByTime(0);
     expect(incGuess).toHaveBeenCalledTimes(1);
     expect(incFound).not.toHaveBeenCalled();
   });
@@ -178,6 +180,7 @@ describe("cell click handling (debounced double-click)", () => {
 
     expect(cell.state).toBe(stateBefore);
     expect(cell.html.className).toBe(classNameBefore);
+    vi.advanceTimersByTime(0);
     expect(incFound).toHaveBeenCalledTimes(1);
   });
 
@@ -191,6 +194,7 @@ describe("cell click handling (debounced double-click)", () => {
     clickAt(cell.html, DUPLICATE_CLICK_MS + 20 + DUPLICATE_CLICK_MS + 20); // rapid 3rd click
 
     expect(cell.frozen).toBe(true);
+    vi.advanceTimersByTime(0);
     expect(incGuess).toHaveBeenCalledTimes(1); // not called again
   });
 });

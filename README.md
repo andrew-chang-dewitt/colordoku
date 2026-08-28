@@ -169,17 +169,21 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       (plan: `docs/plans/board-generation-difficulty.md`) — guess-count half
       (Phase 1) done; generation-hardness half (Phase 2) still open
 - [/] #gameover-ui UI indicating a game was won or lost
-      (plan: `docs/plans/gameover-modal-ui.md`)
-  - [ ] improve win UI by making it a little more celebratory, maybe add things
-        like a confetti animation popping in from the sides angled up at 45ish
-        degree angles then falling down behind the modal in the background
-    - [ ] also add score to win modal
-    - [ ] and if they want to share board & their completion time/score
+  (plan: `docs/plans/gameover-modal-ui.md`)
+  - [x] improve win UI by making it a little more celebratory, maybe add things
+    like a confetti animation popping in from the sides angled up at 45ish
+    degree angles then falling down behind the modal in the background
+    - [x] also add score to win modal
+    - [x] and if they want to share board & their completion time/score
+    - [ ] confetti gravity direction follows device rotation (rotate the
+          screen, gravity redirects toward the new "down", including pieces
+          already mid-flight) — probably overkill/ridiculous, but planned
+          (plan: `docs/plans/confetti-gravity-orientation.md`)
   - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
         loss? needs investigation on how losses factor into score first...) &
         show placement w/in top 3-5 if in that range, otherwise show top 3-5
         above user's new ranking & score
-  - [ ] ask user if they want to try again on a loss
+  - [x] ask user if they want to try again on a loss
   - [ ] on first win, show special version of the win UI modal w/ extra copy
         celebrating their **first** win & introducing the leaderboard concept while
         asking if they want to opt in or not (opt in request does not require
@@ -211,8 +215,16 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   completion time
   - [x] determine how to score losses (are they negative? no score at all?
         number of attempts to reach a win influences score?)
-  - [ ] track cumulative score over time ranges (today, this week, this month,
-        this year, all time) for local user history
+  - [/] track cumulative score over time ranges (today, this week, this month,
+        this year, all time) for local user history — weekly totals & an
+        all-time total are done (`persistence/weeklyScore.ts`, derived from
+        history rather than stored separately), surfaced in the history
+        view's summary line & a per-entry running total, plus a new "Score
+        over time" drawer (`scoreview.ts`) off the profile menu; today/month/
+        year granularity still open. Win-modal weekly-score display still
+        pending (blocked on an unrelated in-progress edit to the same file).
+    - [ ] score-over-time view: show the trend as a line graph, not just a
+          list (plan: `docs/plans/scoreview-line-graph.md`)
 - [x] #user-data user profile menu button
   - [x] in the top right of the board view (in same row as timer & guesses
         remaining counter UI)
@@ -237,7 +249,8 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       check the saved game is still in progress. Masked in normal play since
       "New game" always goes through the options drawer rather than a raw
       `?size=` navigation, but a bookmarked/typed URL hits it.
-- [ ] #user-score long term score tracking (using localstate)
+- [/] #user-score long term score tracking (using localstate) — see the
+  cumulative-tracking subtask above; weekly + all-time done, other ranges open
   - [x] button for starting new game on same board as each history entry
   - [x] button for sharing game on same board from each history entry
 - [ ] generalize start over confirmation dialog for any time user tries to

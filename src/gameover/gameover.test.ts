@@ -130,18 +130,14 @@ describe("newGameOver", () => {
     const { gameOver } = mount();
     gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
 
-    // Query for the confetti container by getting the first div child (confetti is appended first)
-    const confettiContainer = gameOver.html.querySelector("div");
-    expect(confettiContainer).toBeTruthy();
-    expect(confettiContainer?.children.length).toBeGreaterThan(0);
+    expect(gameOver.confettiHtml).toBeTruthy();
+    expect(gameOver.confettiHtml.children.length).toBeGreaterThan(0);
   });
 
   it("confetti container is empty after show() on a loss", () => {
     const { gameOver } = mount();
     gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
 
-    // Query for the confetti container by getting the first div child (confetti is appended first)
-    const confettiContainer = gameOver.html.querySelector("div");
-    expect(confettiContainer?.children.length).toBe(0);
+    expect(gameOver.confettiHtml.children.length).toBe(0);
   });
 });

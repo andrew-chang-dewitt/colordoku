@@ -11,6 +11,7 @@ export interface GameOverResult {
 
 export interface GameOver {
   html: HTMLDialogElement;
+  confettiHtml: HTMLDivElement;
   /** Opens the modal with win/loss-specific messaging. */
   show: (result: GameOverResult) => void;
 }
@@ -44,21 +45,32 @@ export function newGameOver({
   const html = document.createElement("dialog");
   html.className = classes.modal;
 
-  const confetti = document.createElement("div");
-  confetti.className = classes.confetti;
-  html.append(confetti);
+  // Full-viewport, so it isn't clipped to the card's small bounding box; a
+  // child of the dialog (not document.body), so it shares the dialog's own
+  // top-layer stacking context and renders above ::backdrop's dimming
+  // instead of underneath it.
+  const confettiHtml = document.createElement("div");
+  confettiHtml.className = classes.confetti;
+  html.append(confettiHtml);
+
+  // The actual visible card — separated from the dialog element itself so
+  // the dialog can be a full-viewport transparent shell (for confetti to
+  // fill) while the card keeps the original centered, bordered modal look.
+  const card = document.createElement("div");
+  card.className = classes.card;
+  html.append(card);
 
   const heading = document.createElement("h2");
   heading.className = classes.heading;
-  html.append(heading);
+  card.append(heading);
 
   const message = document.createElement("p");
   message.className = classes.message;
-  html.append(message);
+  card.append(message);
 
   const score = document.createElement("p");
   score.className = classes.score;
-  html.append(score);
+  card.append(score);
 
   const actions = document.createElement("div");
   actions.className = classes.actions;
@@ -106,63 +118,218 @@ export function newGameOver({
   });
   actions.append(shareButton.html);
 
-  html.append(actions);
+  card.append(actions);
 
   html.addEventListener("cancel", (event) => event.preventDefault());
 
-  function createConfetti(): void {
-    // Clear existing confetti
-    confetti.innerHTML = "";
+  // Clear confetti when the dialog closes
+  html.addEventListener("close", () => {
+    confettiHtml.innerHTML = "";
+  });
 
-    const confettiCount = Math.random() * 16 + 24; // 24-40 pieces
+  function createConfetti(): void {
+    // Respect prefers-reduced-motion: skip creating confetti if motion is reduced
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    // Clear existing confetti
+    confettiHtml.innerHTML = "";
+
+    // Launch point: top-center of the card
+    const cardRect = card.getBoundingClientRect();
+    const launchX = cardRect.left + cardRect.width / 2;
+    const launchY = cardRect.top;
+
+    // Baseline (mobile) piece count is double the original 24-40 range;
+    // scaled further by viewport width so desktop doesn't look sparse.
+    const screenScale = Math.max(1, Math.min(3.5, window.innerWidth / 500));
+    const confettiCount = Math.round((Math.random() * 32 + 48) * screenScale);
     const colors = Array.from(
       { length: 16 },
-      (_, i) => `var(--color-group-${i})`
+      (_, i) => `var(--color-confetti-${i})`
     );
+
+    const gravity = 800; // pixels per second²
+
+    // Distance to top edge (for calculating threshold launch speed)
+    const distanceToTop = launchY;
+
+    // Threshold speed to just reach the top edge
+    const vTop = Math.sqrt(2 * gravity * distanceToTop);
+
 
     for (let i = 0; i < confettiCount; i++) {
       const piece = document.createElement("span");
       piece.className = classes.confettiPiece;
 
-      // Random horizontal start position (skewed toward edges)
-      const xStart = Math.random() < 0.5
-        ? Math.random() * 30 // 0-30% (left edge)
-        : 70 + Math.random() * 30; // 70-100% (right edge)
-
-      // Random launch angle around 45°
-      const angleRad = ((30 + Math.random() * 30) * Math.PI) / 180;
-
-      // Random fall duration and delay
-      const duration = 2 + Math.random() * 1;
-      const delay = Math.random() * 0.3;
-
-      // Calculate horizontal offset based on angle and duration
-      const xOffset = Math.cos(angleRad) * 80; // Scale of 80px
-
       // Random color from the palette
       const color = colors[Math.floor(Math.random() * colors.length)];
-
-      piece.style.setProperty("--x-start", `${xStart}%`);
-      piece.style.setProperty("--x-offset", `${xOffset}px`);
-      piece.style.setProperty("--duration", `${duration}s`);
-      piece.style.setProperty("--delay", `${delay}s`);
       piece.style.setProperty("--color", color);
 
-      confetti.append(piece);
+      // Small jitter on launch position (±2-3px)
+      const jitterX = (Math.random() - 0.5) * 6; // ±3px
+      const jitterY = (Math.random() - 0.5) * 4; // ±2px
+      const actualLaunchX = launchX + jitterX;
+      const actualLaunchY = launchY + jitterY;
 
-      // Remove piece after animation ends
-      piece.addEventListener(
-        "animationend",
-        () => {
+      // Launch angle: centered on straight up (90°), with tent distribution spread
+      // Tent distribution: average two uniform randoms for more concentration near center
+      const spreadRange = 30; // ±30° from vertical
+      const tent = (Math.random() + Math.random()) / 2; // 0 to 1, peaked at 0.5
+      const angle = 90 + (tent - 0.5) * 2 * spreadRange; // ranges 60° to 120°
+      const angleRad = (angle * Math.PI) / 180;
+
+      // Vertical launch speed: sample between 0.75*vTop and 1.35*vTop
+      // This ensures roughly 10-30% of pieces exceed the top edge
+      const vSpeedFactor = 0.75 + Math.random() * 0.6;
+      const vSpeed = vSpeedFactor * vTop;
+      const vx = Math.cos(angleRad) * vSpeed;
+      const vy = -Math.sin(angleRad) * vSpeed; // Negative = upward
+
+      // Animation delay (stagger the starts)
+      const delay = Math.random() * 0.1;
+
+      // Physics simulation: bouncing and settling
+      const RESTITUTION = 0.45;
+      const MIN_BOUNCE_SPEED = 60;
+      const HOLD_SECONDS = 10.0;
+      const FADE_SECONDS = 0.6;
+      const MAX_DURATION = 15.0; // must exceed HOLD_SECONDS + FADE_SECONDS plus bounce time, or the settle/fade phase gets cut short
+      const dt = 0.05; // 20 samples/sec for bounce/flight phase (coarser than old 0.032)
+
+      // Piece rests right at the bottom edge of the viewport (small offset
+      // is roughly half the piece's own height, ~6px, so it sits on the
+      // edge rather than centered past it).
+      const floorY = Math.max(0, window.innerHeight - launchY - 3);
+
+      let t = 0;
+      let x = 0;
+      let y = 0;
+      let vx_sim = vx;
+      let vy_sim = vy;
+      let settled = false;
+      let settledTime = 0;
+
+      interface KeyframeData {
+        transform: string;
+        opacity: number;
+        time: number;
+      }
+      const keyframeData: KeyframeData[] = [];
+
+      // Initial keyframe
+      keyframeData.push({
+        transform: `translate(${actualLaunchX + x}px, ${actualLaunchY + y}px)`,
+        opacity: 1,
+        time: 0,
+      });
+
+      // Physics simulation loop: bounce/flight phase only
+      while (t < MAX_DURATION) {
+        // Physics step: integrate (unless already settled)
+        if (!settled) {
+          vy_sim += gravity * dt;
+          y += vy_sim * dt;
+          x += vx_sim * dt;
+
+          // Check for floor collision
+          if (y >= floorY) {
+            // Bounce with damping
+            vy_sim = -vy_sim * RESTITUTION;
+            vx_sim *= 0.7;
+            y = floorY; // Clamp to floor
+
+            // Check if we should settle
+            if (Math.abs(vy_sim) < MIN_BOUNCE_SPEED) {
+              settled = true;
+              settledTime = t;
+              vy_sim = 0;
+
+              // Push final keyframe at settle moment
+              keyframeData.push({
+                transform: `translate(${actualLaunchX + x}px, ${actualLaunchY + y}px)`,
+                opacity: 1,
+                time: t,
+              });
+
+              // Hold phase: push exactly one keyframe at settledTime + HOLD_SECONDS
+              // Same transform/opacity as settle moment; WAAPI interpolates identical values as no-op
+              keyframeData.push({
+                transform: `translate(${actualLaunchX + x}px, ${actualLaunchY + y}px)`,
+                opacity: 1,
+                time: settledTime + HOLD_SECONDS,
+              });
+
+              // Fade phase: push one final keyframe at settledTime + HOLD_SECONDS + FADE_SECONDS
+              // Same transform, opacity: 0; linear interpolation produces the fade
+              keyframeData.push({
+                transform: `translate(${actualLaunchX + x}px, ${actualLaunchY + y}px)`,
+                opacity: 0,
+                time: settledTime + HOLD_SECONDS + FADE_SECONDS,
+              });
+
+              // Stop looping; hold+fade phases are now represented by single keyframes each
+              break;
+            }
+          }
+
+          // Push keyframe only during bounce/flight phase (before settling)
+          keyframeData.push({
+            transform: `translate(${actualLaunchX + x}px, ${actualLaunchY + y}px)`,
+            opacity: 1,
+            time: t,
+          });
+        }
+
+        t += dt;
+      }
+
+      // Convert to animation keyframes with normalized offsets. Use the
+      // *last keyframe's* own time, not the loop's final `t` — when a piece
+      // settles, the loop breaks right after pushing the hold/fade
+      // keyframes (at settledTime + HOLD_SECONDS + FADE_SECONDS) without
+      // ever advancing `t` that far, so `t` alone would understate the
+      // real duration and push those keyframes' offsets past 1.
+      const duration = keyframeData[keyframeData.length - 1].time;
+      const keyframes: Keyframe[] = keyframeData.map((kf) => ({
+        transform: kf.transform,
+        opacity: kf.opacity,
+        offset: duration > 0 ? kf.time / duration : 0,
+      }));
+
+      confettiHtml.append(piece);
+
+      // Set initial position via transform (also covers environments without
+      // Web Animations API, where the keyframes below never apply)
+      piece.style.transform = `translate(${actualLaunchX}px, ${actualLaunchY}px)`;
+
+      // Play the animation using Web Animations API (if available)
+      if (piece.animate) {
+        const animation = piece.animate(keyframes, {
+          duration: duration * 1000,
+          delay: delay * 1000,
+          easing: "linear",
+          fill: "forwards",
+        });
+
+        // Remove piece when animation finishes
+        animation.addEventListener("finish", () => {
           piece.remove();
-        },
-        { once: true }
-      );
+        });
+      } else {
+        // Fallback for environments without Web Animations API (e.g., jsdom in tests)
+        // Just remove the piece after the calculated duration
+        setTimeout(() => {
+          piece.remove();
+        }, (duration + delay) * 1000);
+      }
     }
   }
 
   return {
     html,
+    confettiHtml,
 
     show({ state, elapsedMs, score: scoreValue, size }) {
       const won = state === 1;
@@ -184,11 +351,14 @@ export function newGameOver({
         score.textContent = `Score: ${scoreValue}`;
       }
 
+      // Open dialog BEFORE starting animations on confetti, so they start on rendered elements
+      if (!html.open) html.showModal();
+
       // Confetti: plays only on win
       if (won) {
         createConfetti();
       } else {
-        confetti.innerHTML = "";
+        confettiHtml.innerHTML = "";
       }
 
       // Share button: shown only on win
@@ -196,8 +366,6 @@ export function newGameOver({
 
       // Try again button: shown only on loss
       tryAgain.hidden = won;
-
-      if (!html.open) html.showModal();
     },
   };
 }

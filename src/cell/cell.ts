@@ -111,15 +111,29 @@ export function newCell(
     if (cell.queen) {
       cell.state = 2;
       html.className += ` ${classes.found}`;
-      game.incFound();
     } else {
       cell.state = 1;
       html.className += ` ${classes.error}`;
-      game.incGuess();
     }
 
     cell.frozen = true;
     cell.update();
+
+    // Defer game.incFound()/incGuess() — game.onEnd's listeners (main.ts) can
+    // synchronously trigger heavy work (confetti generation, persistence
+    // writes, opening the game-over modal) via a *synchronous* notifyEnd()
+    // call. Running that inline, in the same task as this click, blocks the
+    // browser from painting the cell.update() above before that heavy work
+    // starts — which is exactly what makes the winning click's queen glyph
+    // appear to lag behind the stale "X". Deferring by one task lets the
+    // browser paint first.
+    setTimeout(() => {
+      if (cell.queen) {
+        game.incFound();
+      } else {
+        game.incGuess();
+      }
+    }, 0);
   }
 
   function handleClick(_: MouseEvent): void {
