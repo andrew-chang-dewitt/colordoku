@@ -119,4 +119,28 @@ describe("newShareButton", () => {
     html.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalledWith(current));
   });
+
+  it("renders icon-only with hidden label and aria-label when iconOnly is true", async () => {
+    const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const { html } = newShareButton({
+      getUrl: () => "https://example.com/?size=4&board-id=1",
+      title: "Share",
+      iconOnly: true,
+    });
+
+    // Check initial state: label should be hidden, aria-label present
+    const labelSpan = html.querySelector("span:last-of-type") as HTMLSpanElement;
+    expect(labelSpan?.style.display).toBe("none");
+    expect(html.getAttribute("aria-label")).toBe("Share");
+
+    // Click and verify flash temporarily shows the label
+    html.click();
+    await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalled());
+    await vi.waitFor(() => expect(html.textContent).toBe("Link copied!"));
+    expect(labelSpan?.style.display).toBe("");
+
+    // Wait for the flash to complete and verify label is hidden again
+    await vi.waitFor(() => expect(html.disabled).toBe(false), { timeout: 2000 });
+    expect(labelSpan?.style.display).toBe("none");
+  });
 });

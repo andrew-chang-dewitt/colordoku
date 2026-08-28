@@ -47,6 +47,7 @@
 
   background-color: var(--color-surface);
   box-shadow: 0 0.5em 1.5em rgb(0 0 0 / 0.3);
+  text-align: center;
 }
 
 .heading {
@@ -64,17 +65,31 @@
   color: var(--color-error);
 }
 
+.summaryRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin: 0 0 0.25em;
+}
+
 .message {
-  margin: 0 0 1.25em;
+  font-weight: inherit;
 }
 
 .score {
-  margin: 0 0 1.25em;
   font-weight: 500;
 }
 
+.score::before {
+  content: "·";
+  margin-right: 0.4em;
+  opacity: 0.6;
+}
+
 .weeklyScore {
-  margin: -1em 0 1.25em;
+  margin: 0 0 1.25em;
   font-size: 0.9em;
   opacity: 0.8;
 }
@@ -89,7 +104,7 @@
 
 .actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0.5em;
   position: relative;

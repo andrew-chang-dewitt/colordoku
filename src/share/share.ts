@@ -24,6 +24,7 @@ export interface ShareButtonConfig {
   getUrl: () => string;
   title?: string;
   text?: string | (() => string);
+  iconOnly?: boolean;
 }
 
 export interface ShareButton {
@@ -45,12 +46,14 @@ export function newShareButton({
   getUrl,
   title = "Colordoku",
   text = "Play this Colordoku board with me",
+  iconOnly = false,
 }: ShareButtonConfig): ShareButton {
   const DEFAULT_LABEL = "Share";
 
   const html = document.createElement("button");
   html.type = "button";
   html.className = `btn btn-secondary`;
+  html.setAttribute("aria-label", title);
 
   // The classic iOS share glyph (an arrow pointing up out of an open-top
   // tray) — user-picked from three candidates (iOS box+arrow, Material
@@ -77,6 +80,9 @@ export function newShareButton({
   // nodes of its own.
   const labelSpan = document.createElement("span");
   labelSpan.textContent = DEFAULT_LABEL;
+  if (iconOnly) {
+    labelSpan.style.display = "none";
+  }
   html.append(labelSpan);
 
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
@@ -85,9 +91,15 @@ export function newShareButton({
   function flash(message: string, ms: number): void {
     if (resetTimer !== null) clearTimeout(resetTimer);
     labelSpan.textContent = message;
+    if (iconOnly) {
+      labelSpan.style.display = "";
+    }
     html.disabled = true;
     resetTimer = setTimeout(() => {
       labelSpan.textContent = DEFAULT_LABEL;
+      if (iconOnly) {
+        labelSpan.style.display = "none";
+      }
       html.disabled = false;
       resetTimer = null;
     }, ms);

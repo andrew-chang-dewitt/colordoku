@@ -110,7 +110,7 @@ describe("newGameOver", () => {
     // Win: share button visible
     gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
     const shareButton = [...gameOver.html.querySelectorAll("button")].find(
-      (b) => b.textContent?.includes("Share"),
+      (b) => b.getAttribute("aria-label") === "Share",
     );
     expect(shareButton?.hidden).toBe(false);
 

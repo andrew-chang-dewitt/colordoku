@@ -68,11 +68,28 @@ export function newGameOver({
 
   const message = document.createElement("p");
   message.className = classes.message;
-  card.append(message);
 
   const score = document.createElement("p");
   score.className = classes.score;
-  card.append(score);
+
+  let shareSize = 4; // Default, will be set in show()
+  let shareElapsedMs = 0; // Default, will be set in show()
+  let shareScore = 0; // Default, will be set in show()
+
+  const shareButton = newShareButton({
+    getUrl: getShareUrl,
+    title: "Share",
+    text: () =>
+      `I solved a ${shareSize}x${shareSize} Colordoku in ${formatElapsed(
+        shareElapsedMs
+      )} — score ${shareScore}!`,
+    iconOnly: true,
+  });
+
+  const summaryRow = document.createElement("div");
+  summaryRow.className = classes.summaryRow;
+  summaryRow.append(message, score, shareButton.html);
+  card.append(summaryRow);
 
   const weeklyScore = document.createElement("p");
   weeklyScore.className = classes.weeklyScore;
@@ -110,19 +127,6 @@ export function newGameOver({
     onNewGame();
   });
   actions.append(newGame);
-
-  let shareSize = 4; // Default, will be set in show()
-  let shareElapsedMs = 0; // Default, will be set in show()
-  let shareScore = 0; // Default, will be set in show()
-
-  const shareButton = newShareButton({
-    getUrl: getShareUrl,
-    text: () =>
-      `I solved a ${shareSize}x${shareSize} Colordoku in ${formatElapsed(
-        shareElapsedMs
-      )} — score ${shareScore}!`,
-  });
-  actions.append(shareButton.html);
 
   card.append(actions);
 
@@ -343,7 +347,7 @@ export function newGameOver({
       html.classList.toggle(classes.lost, !won);
       heading.textContent = won ? "You won!" : "Out of guesses";
       message.textContent = won
-        ? `Solved in ${formatElapsed(elapsedMs)}.`
+        ? `Solved in ${formatElapsed(elapsedMs)}`
         : "No guesses left — better luck next time.";
 
       // Update share text variables for dynamic share message

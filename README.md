@@ -186,7 +186,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
           screen, gravity redirects toward the new "down", including pieces
           already mid-flight) — probably overkill/ridiculous, but planned
           (plan: `docs/plans/confetti-gravity-orientation.md`)
-    - [ ] streamline modal layout: score & solve time on one line, center
+    - [x] streamline modal layout: score & solve time on one line, center
           header/text/button row, share button icon-only & moved inline w/
           score/time (plan: `docs/plans/gameover-modal-layout.md`)
   - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
