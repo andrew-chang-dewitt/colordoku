@@ -180,7 +180,12 @@ async function main(): Promise<void> {
   const historyView = newHistoryView({ onPlayAgain: startOver });
   app.append(historyView.html);
 
-  const scoreView = newScoreView();
+  const scoreView = newScoreView({
+    onViewInHistory: (entryId) => {
+      scoreView.close();
+      historyView.open(entryId);
+    },
+  });
   app.append(scoreView.html);
 
   const userMenu = newUserMenu({

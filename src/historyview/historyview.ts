@@ -151,7 +151,15 @@ export interface HistoryViewConfig {
 
 export interface HistoryView {
   html: HTMLDialogElement;
-  open: () => void;
+  /**
+   * With no argument, opens showing whatever filters/sort are already
+   * active. With `focusEntryId`, first resets both filters to "all" (so an
+   * active filter can't hide the target entry — that would defeat the whole
+   * point of "bring it into view"), keeping the current sort as-is, then
+   * scrolls to and briefly highlights that entry's row. Used by
+   * scoreview.ts's chart tooltip to jump straight to a specific game.
+   */
+  open: (focusEntryId?: string) => void;
   close: () => void;
 }
 
@@ -245,6 +253,7 @@ export function newHistoryView({
   function renderEntry(entry: HistoryEntry, allEntries: HistoryEntry[]): HTMLLIElement {
     const item = document.createElement("li");
     item.className = classes.entry;
+    item.dataset.entryId = entry.id;
 
     const main = document.createElement("div");
     main.className = classes.entryMain;
@@ -395,9 +404,27 @@ export function newHistoryView({
   return {
     html,
 
-    open() {
+    open(focusEntryId?: string) {
+      if (focusEntryId !== undefined) {
+        statusFilter = "all";
+        sizeFilter = "all";
+        statusControl.select.value = "all";
+        sizeControl.select.value = "all";
+      }
+
       render();
       if (!html.open) html.showModal();
+
+      if (focusEntryId !== undefined) {
+        const target = list.querySelector<HTMLLIElement>(
+          `li[data-entry-id="${focusEntryId}"]`,
+        );
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add(classes.entryHighlight);
+          setTimeout(() => target.classList.remove(classes.entryHighlight), 1800);
+        }
+      }
     },
 
     close() {

@@ -6,6 +6,7 @@ import {
   sizesIn,
   sortEntries,
 } from "./historyview";
+import classes from "./historyview.module.css";
 
 let nextId = 0;
 function entry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
@@ -121,6 +122,9 @@ describe("sizesIn", () => {
 describe("newHistoryView", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
+    // jsdom/happy-dom doesn't implement scrollIntoView; stub it so
+    // open(focusEntryId) doesn't throw when it calls this.
+    Element.prototype.scrollIntoView = vi.fn();
   });
 
   function mount(entries: HistoryEntry[], onPlayAgain = vi.fn()) {
@@ -334,5 +338,71 @@ describe("newHistoryView", () => {
     expect(rows[0].textContent).toContain("Week total: 450"); // newest entry (entry 3)
     expect(rows[1].textContent).toContain("Week total: 300"); // entry 2
     expect(rows[2].textContent).toContain("Week total: 100"); // entry 1 (oldest)
+  });
+
+  it("gives each rendered row a data-entry-id matching its HistoryEntry", () => {
+    const target = entry({ id: "target-entry" });
+    const { view } = mount([target, entry()]);
+    view.open();
+
+    const row = view.html.querySelector('li[data-entry-id="target-entry"]');
+    expect(row).not.toBeNull();
+  });
+
+  it("open(entryId) resets active status/size filters to 'all' so the target entry can't be hidden", () => {
+    const target = entry({ id: "target-entry", status: "won", size: 8 });
+    const other = entry({ status: "lost", size: 4 });
+    const { view } = mount([target, other]);
+    view.open();
+
+    // Apply filters that would hide the target entry.
+    const statusSelect = view.html.querySelectorAll("select")[0] as HTMLSelectElement;
+    statusSelect.value = "lost";
+    statusSelect.dispatchEvent(new Event("change"));
+    const sizeSelect = view.html.querySelectorAll("select")[1] as HTMLSelectElement;
+    sizeSelect.value = "4";
+    sizeSelect.dispatchEvent(new Event("change"));
+    expect(view.html.querySelectorAll("ul > li")).toHaveLength(1);
+
+    view.open("target-entry");
+
+    expect(statusSelect.value).toBe("all");
+    expect(sizeSelect.value).toBe("all");
+    const rows = view.html.querySelectorAll("ul > li");
+    expect(rows).toHaveLength(2);
+    expect(view.html.querySelector('li[data-entry-id="target-entry"]')).not.toBeNull();
+  });
+
+  it("open(entryId) scrolls the matching row into view and applies a temporary highlight", () => {
+    vi.useFakeTimers();
+    try {
+      const target = entry({ id: "target-entry" });
+      const { view } = mount([target, entry()]);
+
+      view.open("target-entry");
+
+      const row = view.html.querySelector('li[data-entry-id="target-entry"]') as HTMLLIElement;
+      expect(row.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      expect(row.classList.contains(classes.entryHighlight)).toBe(true);
+
+      vi.runAllTimers();
+      expect(row.classList.contains(classes.entryHighlight)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("open() with no argument does not reset active filters", () => {
+    const { view } = mount([entry({ status: "won" }), entry({ status: "lost" })]);
+    view.open();
+
+    const statusSelect = view.html.querySelectorAll("select")[0] as HTMLSelectElement;
+    statusSelect.value = "won";
+    statusSelect.dispatchEvent(new Event("change"));
+    expect(view.html.querySelectorAll("ul > li")).toHaveLength(1);
+
+    view.open();
+    expect(statusSelect.value).toBe("won");
+    expect(view.html.querySelectorAll("ul > li")).toHaveLength(1);
   });
 });

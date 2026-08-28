@@ -88,6 +88,28 @@
   font-weight: 500;
 }
 
+.chartWrapper {
+  width: 100%;
+  height: 140px;
+  margin-bottom: 1em;
+}
+
+.chartEmpty {
+  margin: 0.5em 0;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.point:focus-visible {
+  outline: 2px solid var(--color-on-surface);
+  outline-offset: 2px;
+}
+
+.tooltip {
+  /* Purely a hook for tests/hit-testing; visual styling lives on the rect/text
+   * elements themselves since SVG <g> can't be styled with a background. */
+}
+
 .list {
   display: flex;
   flex-direction: column;

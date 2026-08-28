@@ -168,6 +168,13 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       can influence board generation & max number of incorrect guesses allowed
       (plan: `docs/plans/board-generation-difficulty.md`) — guess-count half
       (Phase 1) done; generation-hardness half (Phase 2) still open
+- [ ] #keyboard-nav keyboard interaction for playing the board without a
+      mouse/touch: arrow keys and/or WASD (plus vim h/j/k/l) to move a cursor
+      around the grid, X to toggle an elimination mark, Q to mark a queen,
+      shift+direction to extend a multi-cell selection for toggling (mirrors
+      board.ts's existing shift+click range-toggle gesture), and ? to show a
+      keymap reference. Not exhaustive — other keys likely needed too. Plan
+      pending approval.
 - [/] #gameover-ui UI indicating a game was won or lost
   (plan: `docs/plans/gameover-modal-ui.md`)
   - [x] improve win UI by making it a little more celebratory, maybe add things
@@ -179,6 +186,9 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
           screen, gravity redirects toward the new "down", including pieces
           already mid-flight) — probably overkill/ridiculous, but planned
           (plan: `docs/plans/confetti-gravity-orientation.md`)
+    - [ ] streamline modal layout: score & solve time on one line, center
+          header/text/button row, share button icon-only & moved inline w/
+          score/time (plan: `docs/plans/gameover-modal-layout.md`)
   - [ ] if opted into leaderboard, show leaderboard ranking change w/ win ( or
         loss? needs investigation on how losses factor into score first...) &
         show placement w/in top 3-5 if in that range, otherwise show top 3-5
@@ -223,7 +233,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
         over time" drawer (`scoreview.ts`) off the profile menu; today/month/
         year granularity still open. Win-modal weekly-score display is now
         done too, shown alongside per-game score.
-    - [ ] score-over-time view: show the trend as a line graph, not just a
+    - [x] score-over-time view: show the trend as a line graph, not just a
           list (plan: `docs/plans/scoreview-line-graph.md`)
 - [x] #user-data user profile menu button
   - [x] in the top right of the board view (in same row as timer & guesses
@@ -249,6 +259,13 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       check the saved game is still in progress. Masked in normal play since
       "New game" always goes through the options drawer rather than a raw
       `?size=` navigation, but a bookmarked/typed URL hits it.
+- [ ] #touch-scroll-bug on mobile/touchscreens, touch-and-drag multi-cell
+      marking often triggers native page scroll instead of the drag gesture
+      (existing `html { overflow-y: hidden; }` isn't sufficient on iOS
+      Safari) — root-caused to delayed `preventDefault()` timing in
+      board.ts's touch handlers plus `touch-action: manipulation` on `.cell`
+      still permitting native panning (plan:
+      `docs/plans/mobile-touch-drag-scroll.md`)
 - [/] #user-score long term score tracking (using localstate) — see the
   cumulative-tracking subtask above; weekly + all-time done, other ranges open
   - [x] button for starting new game on same board as each history entry

@@ -221,6 +221,14 @@
   gap: 0.5em;
 }
 
+/* Brief highlight applied/removed by historyview.ts's open(focusEntryId) so a
+ * scroll-into-view lands the player's eye on which entry it is, not just that
+ * the list scrolled somewhere. */
+.entryHighlight {
+  background-color: color-mix(in srgb, var(--color-queen) 20%, transparent);
+  transition: background-color 1.5s ease;
+}
+
 .emptyState {
   margin: 1.5em 0;
   text-align: center;
