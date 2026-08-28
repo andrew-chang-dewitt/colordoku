@@ -9,6 +9,7 @@ function makeSave(overrides: Partial<Omit<SavedGame, "version">> = {}): Omit<Sav
     queensFound: 1,
     gameState: 0,
     elapsedMs: 4200,
+    difficulty: "medium",
     cells: [
       [{ state: 0, frozen: false }, { state: 1, frozen: true }, { state: 0, frozen: false }, { state: 0, frozen: false }],
       [{ state: 0, frozen: false }, { state: 0, frozen: false }, { state: 2, frozen: true }, { state: 0, frozen: false }],
@@ -27,7 +28,7 @@ describe("saveGame / loadGame round-trip", () => {
   it("returns exactly what was saved, plus the version stamp", () => {
     const data = makeSave();
     saveGame(data);
-    expect(loadGame()).toEqual({ ...data, version: 1 });
+    expect(loadGame()).toEqual({ ...data, version: 2 });
   });
 
   it("returns null when nothing has been saved", () => {
@@ -61,9 +62,11 @@ describe("resilience to bad/corrupt data", () => {
   });
 
   it("ignores a save from an incompatible/future schema version", () => {
+    // version 99, not 2: CURRENT_VERSION is 2 now, so a save actually
+    // stamped 2 is valid data, not an incompatible-version case.
     localStorage.setItem(
       "colordoku:save",
-      JSON.stringify({ ...makeSave(), version: 2 }),
+      JSON.stringify({ ...makeSave(), version: 99 }),
     );
     expect(loadGame()).toBeNull();
   });
@@ -84,6 +87,36 @@ describe("resilience to bad/corrupt data", () => {
     bad.cells[0][0] = { state: 9 as never, frozen: false };
     localStorage.setItem("colordoku:save", JSON.stringify({ ...bad, version: 1 }));
     expect(loadGame()).toBeNull();
+  });
+});
+
+describe("migrating a pre-difficulty (v1) save", () => {
+  it("reads a v1 save (no difficulty field at all) and defaults difficulty to 'medium'", () => {
+    const v1 = { ...makeSave(), version: 1 } as Record<string, unknown>;
+    delete v1.difficulty;
+    localStorage.setItem("colordoku:save", JSON.stringify(v1));
+
+    const loaded = loadGame();
+    expect(loaded?.difficulty).toBe("medium");
+    // Nothing else about the save is altered by the migration.
+    expect(loaded).toMatchObject({ size: 4, seed: 12345, elapsedMs: 4200 });
+  });
+
+  it("still rejects a v1 save with a genuinely malformed shape, same as before the migration existed", () => {
+    localStorage.setItem("colordoku:save", JSON.stringify({ version: 1, size: 4 }));
+    expect(loadGame()).toBeNull();
+  });
+
+  it("a v1 save is upgraded to v2 storage the next time saveGame() writes", () => {
+    const v1 = { ...makeSave(), version: 1 } as Record<string, unknown>;
+    delete v1.difficulty;
+    localStorage.setItem("colordoku:save", JSON.stringify(v1));
+
+    saveGame(makeSave({ elapsedMs: 999 }));
+
+    const raw = JSON.parse(localStorage.getItem("colordoku:save")!);
+    expect(raw.version).toBe(2);
+    expect(raw.difficulty).toBe("medium");
   });
 });
 

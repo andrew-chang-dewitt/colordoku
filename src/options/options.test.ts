@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_SIZE, MIN_SIZE } from "../board/generate";
-import { newOptions, startOver } from "./options";
+import { newOptions, startOver, goToSize } from "./options";
 import * as persistence from "../persistence/persistence";
 import * as history from "../persistence/history";
 
@@ -98,13 +98,21 @@ describe("the difficulty field (UI only — not wired to any game behavior yet)"
     expect(hard.checked).toBe(false); // native radio-group exclusivity
   });
 
-  it("does not affect what onSubmit is called with — selecting it changes nothing about the submitted size", () => {
+  it("submits whichever difficulty is actually selected, alongside the size", () => {
     const onSubmit = vi.fn();
     const { options, input, form } = mount({ onSubmit });
     radios(options.html).find((r) => r.value === "hard")!.click();
     input.value = "10";
     submit(form);
-    expect(onSubmit).toHaveBeenCalledWith(10);
+    expect(onSubmit).toHaveBeenCalledWith(10, "hard");
+  });
+
+  it("submits the pre-filled default difficulty when the player never touches the radios", () => {
+    const onSubmit = vi.fn();
+    const { input, form } = mount({ onSubmit, difficulty: "easy" });
+    input.value = "10";
+    submit(form);
+    expect(onSubmit).toHaveBeenCalledWith(10, "easy");
   });
 });
 
@@ -114,7 +122,7 @@ describe("submitting", () => {
     const { input, form } = mount({ onSubmit });
     input.value = "12";
     submit(form);
-    expect(onSubmit).toHaveBeenCalledWith(12);
+    expect(onSubmit).toHaveBeenCalledWith(12, "medium");
   });
 
   it("accepts both ends of the range", () => {
@@ -123,7 +131,7 @@ describe("submitting", () => {
       const { input, form } = mount({ onSubmit });
       input.value = String(size);
       submit(form);
-      expect(onSubmit).toHaveBeenCalledWith(size);
+      expect(onSubmit).toHaveBeenCalledWith(size, "medium");
     }
   });
 
@@ -232,10 +240,10 @@ describe("startOver", () => {
     abandonSpy.mockImplementation(() => order.push("abandon"));
     assignSpy.mockImplementation(() => order.push("navigate"));
 
-    startOver(8, 424242);
+    startOver(8, 424242, "hard");
 
     expect(order).toEqual(["closeOut", "abandon", "navigate"]);
-    expect(assignSpy).toHaveBeenCalledWith("?size=8&board-id=424242");
+    expect(assignSpy).toHaveBeenCalledWith("?size=8&board-id=424242&difficulty=hard");
 
     closeOutSpy.mockRestore();
     abandonSpy.mockRestore();
@@ -247,9 +255,29 @@ describe("startOver", () => {
     vi.spyOn(persistence, "abandonGame").mockImplementation(() => {});
     const assignSpy = vi.spyOn(location, "assign").mockImplementation(() => {});
 
-    startOver(12, 7);
+    startOver(12, 7, "easy");
 
-    expect(assignSpy).toHaveBeenCalledWith("?size=12&board-id=7");
+    expect(assignSpy).toHaveBeenCalledWith("?size=12&board-id=7&difficulty=easy");
+
+    vi.restoreAllMocks();
+  });
+});
+
+describe("goToSize", () => {
+  it("closes out any in-progress history entry, abandons the saved game, and navigates to the chosen size + difficulty", () => {
+    const closeOutSpy = vi.spyOn(history, "closeOutInProgress").mockImplementation(() => {});
+    const abandonSpy = vi.spyOn(persistence, "abandonGame").mockImplementation(() => {});
+    const assignSpy = vi.spyOn(location, "assign").mockImplementation(() => {});
+
+    const order: string[] = [];
+    closeOutSpy.mockImplementation(() => order.push("closeOut"));
+    abandonSpy.mockImplementation(() => order.push("abandon"));
+    assignSpy.mockImplementation(() => order.push("navigate"));
+
+    goToSize(8, "hard");
+
+    expect(order).toEqual(["closeOut", "abandon", "navigate"]);
+    expect(assignSpy).toHaveBeenCalledWith("?size=8&difficulty=hard");
 
     vi.restoreAllMocks();
   });

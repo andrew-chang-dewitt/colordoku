@@ -1,0 +1,66 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Positioned relative to .wrapper (not the viewport, and not a CSS-anchor-
+ * positioned popover — see usermenu.ts's doc comment for why this is a plain
+ * `hidden`-toggled div rather than the Popover API), anchored to the
+ * trigger button's bottom-right corner like a conventional dropdown. */
+.menu {
+  position: absolute;
+  top: calc(100% + 0.4em);
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 0.4em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  min-width: 11em;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5em;
+  /* Same understated "lifted off the page" treatment the options drawer and
+   * gameover modal use, scaled to this smaller panel. */
+  box-shadow: 0 0.4em 1.2em rgb(0 0 0 / 0.25);
+}
+
+/* The `display: flex` above has the same specificity as the UA stylesheet's
+ * `[hidden] { display: none }` (both a single attribute/class selector), so
+ * without this override, this rule's later source position would win and
+ * silently defeat `menu.hidden = true` — the menu would stay visible the
+ * whole time regardless of usermenu.ts's open/closed state. */
+.menu[hidden] {
+  display: none;
+}
+
+.item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5em 0.6em;
+  font: inherit;
+  font-size: 0.95em;
+  color: var(--color-on-surface);
+  background: none;
+  border: 0;
+  border-radius: 0.35em;
+  cursor: pointer;
+}
+
+.item:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-on-surface);
+  outline-offset: -2px;
+}
+
+.item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

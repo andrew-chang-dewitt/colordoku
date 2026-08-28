@@ -15,6 +15,8 @@
  * elapsed time, win/loss) is actually saved.
  */
 
+import type { Difficulty } from "../options/options";
+
 type CellState = 0 | 1 | 2; // not marked, eliminated, queen — mirrors cell.ts's State
 
 export interface SavedCell {
@@ -25,7 +27,7 @@ export interface SavedCell {
 export interface SavedGame {
   /** Bumped on any incompatible change to this shape, so an old save from a
    * previous version of the app is ignored rather than misread. */
-  version: 1;
+  version: 2;
   size: number;
   seed: number;
   guessesLeft: number;
@@ -33,12 +35,21 @@ export interface SavedGame {
   /** Mirrors Game['state']: 0 continuing, 1 won, 2 lost. */
   gameState: 0 | 1 | 2;
   elapsedMs: number;
+  /**
+   * The difficulty this attempt is being played under — fixed for the whole
+   * attempt, persisted here (not just read live from the URL on every load)
+   * so a reload/resume can't silently switch to a different difficulty than
+   * the one the player actually started with (e.g. a bookmark or share link
+   * missing `?difficulty=`). Needed now that difficulty factors into scoring
+   * — see persistence/score.ts and persistence/history.ts's HistoryEntry.
+   */
+  difficulty: Difficulty;
   /** Row-major, same shape as Board['state']. */
   cells: SavedCell[][];
 }
 
 const STORAGE_KEY = "colordoku:save";
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 /**
  * Set once abandonGame() has been called, for the rest of this page's life.
@@ -78,7 +89,9 @@ export function loadGame(): SavedGame | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isSavedGame(parsed) ? parsed : null;
+    if (isSavedGame(parsed)) return parsed;
+    if (isSavedGameV1(parsed)) return migrateV1(parsed);
+    return null;
   } catch {
     return null;
   }
@@ -125,6 +138,17 @@ function isSavedCell(value: unknown): value is SavedCell {
 }
 
 /**
+ * Kept local/private rather than importing options.ts's exported
+ * isDifficulty — this file already only needs a Difficulty *type* import,
+ * and every other private validator in this codebase (isCellState here,
+ * isHistoryStatus in history.ts) owns its own tiny check rather than
+ * reaching into another module's runtime exports for it.
+ */
+function isDifficultyValue(value: unknown): value is Difficulty {
+  return value === "easy" || value === "medium" || value === "hard";
+}
+
+/**
  * Structural validation against schema drift or hand-edited/corrupted
  * localStorage — this is user-controlled input from the browser's
  * perspective, so nothing here is trusted without a shape check. Also cross
@@ -144,6 +168,7 @@ function isSavedGame(value: unknown): value is SavedGame {
   if (typeof v.queensFound !== "number" || v.queensFound < 0) return false;
   if (v.gameState !== 0 && v.gameState !== 1 && v.gameState !== 2) return false;
   if (typeof v.elapsedMs !== "number" || v.elapsedMs < 0) return false;
+  if (!isDifficultyValue(v.difficulty)) return false;
 
   if (!Array.isArray(v.cells) || v.cells.length !== v.size) return false;
   for (const row of v.cells) {
@@ -152,4 +177,58 @@ function isSavedGame(value: unknown): value is SavedGame {
   }
 
   return true;
+}
+
+/**
+ * The pre-difficulty schema (version 1) — every field SavedGame has today
+ * except `difficulty`, which didn't exist yet. Kept only so loadGame() can
+ * recognize and migrate a still-around v1 save rather than discarding it —
+ * same reasoning and shape as history.ts's HistoryEntryV1/migrateV1.
+ */
+interface SavedGameV1 {
+  version: 1;
+  size: number;
+  seed: number;
+  guessesLeft: number;
+  queensFound: number;
+  gameState: 0 | 1 | 2;
+  elapsedMs: number;
+  cells: SavedCell[][];
+}
+
+function isSavedGameV1(value: unknown): value is SavedGameV1 {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<SavedGameV1>;
+
+  if (v.version !== 1) return false;
+  if (typeof v.size !== "number" || !Number.isInteger(v.size) || v.size < 1) {
+    return false;
+  }
+  if (typeof v.seed !== "number") return false;
+  if (typeof v.guessesLeft !== "number" || v.guessesLeft < 0) return false;
+  if (typeof v.queensFound !== "number" || v.queensFound < 0) return false;
+  if (v.gameState !== 0 && v.gameState !== 1 && v.gameState !== 2) return false;
+  if (typeof v.elapsedMs !== "number" || v.elapsedMs < 0) return false;
+
+  if (!Array.isArray(v.cells) || v.cells.length !== v.size) return false;
+  for (const row of v.cells) {
+    if (!Array.isArray(row) || row.length !== v.size) return false;
+    if (!row.every(isSavedCell)) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Upgrades a v1 save to v2 by defaulting `difficulty` to "medium" — the same
+ * fallback options.ts's own DEFAULT_DIFFICULTY uses, hardcoded here rather
+ * than imported to avoid a value-level circular import with options.ts
+ * (which already imports abandonGame from this file); a plain string
+ * literal has no such issue since it isn't tied to either module's
+ * evaluation order. A v1 save predates the difficulty concept entirely, so
+ * there's no real value to recover — this is a reasonable best-effort
+ * default, not a "correct" answer.
+ */
+function migrateV1(v1: SavedGameV1): SavedGame {
+  return { ...v1, version: CURRENT_VERSION, difficulty: "medium" };
 }

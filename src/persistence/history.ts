@@ -20,6 +20,8 @@
  */
 
 import { loadGame } from "./persistence";
+import type { Difficulty } from "../options/options";
+import { computeScore } from "./score";
 
 export type HistoryStatus = "playing" | "won" | "lost" | "abandoned";
 // "playing": last-known state of a game that hasn't finished yet — not just
@@ -40,6 +42,22 @@ export interface HistoryEntry {
   attempt: number;
   status: HistoryStatus;
   elapsedMs: number;
+  /**
+   * The computed score for this attempt (see persistence/score.ts's
+   * computeScore), or null if it hasn't been (or can't yet be) computed —
+   * always null while status is "playing" (scoring an unfinished attempt
+   * doesn't make sense), and also null for any entry migrated up from a
+   * pre-score schema (see migrateV1/migrateV2 below) rather than
+   * retroactively recomputed.
+   */
+  score: number | null;
+  /**
+   * The difficulty this attempt was played under — factors into `score`
+   * (see computeScore) and lets "Play again" from the history view (see
+   * historyview.ts) replay a past attempt under the same difficulty it
+   * originally used, rather than silently defaulting to something else.
+   */
+  difficulty: Difficulty;
   /** epoch ms this attempt was first recorded. */
   startedAt: number;
   /** epoch ms this entry was last written (checkpoint or final). */
@@ -49,12 +67,12 @@ export interface HistoryEntry {
 interface HistoryFile {
   /** Bumped on any incompatible change to this shape, so an old history
    * store from a previous version of the app is ignored rather than misread. */
-  version: 1;
+  version: 3;
   entries: HistoryEntry[];
 }
 
 const STORAGE_KEY = "colordoku:history";
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 3;
 
 /**
  * Cap on total stored entries. localStorage has a real (browser-dependent,
@@ -97,6 +115,16 @@ function isHistoryStatus(value: unknown): value is HistoryStatus {
 }
 
 /**
+ * Kept local/private rather than importing options.ts's exported
+ * isDifficulty — see persistence.ts's isDifficultyValue for the same call
+ * (avoids a value-level circular import, and matches this file's existing
+ * convention of owning its own small validators, e.g. isHistoryStatus).
+ */
+function isDifficultyValue(value: unknown): value is Difficulty {
+  return value === "easy" || value === "medium" || value === "hard";
+}
+
+/**
  * Structural validation against schema drift or hand-edited/corrupted
  * localStorage, same rationale as persistence.ts's isSavedGame. Any single
  * malformed entry invalidates the whole stored file (rather than trying to
@@ -119,6 +147,8 @@ function isHistoryEntry(value: unknown): value is HistoryEntry {
     isHistoryStatus(e.status) &&
     typeof e.elapsedMs === "number" &&
     e.elapsedMs >= 0 &&
+    (e.score === null || typeof e.score === "number") &&
+    isDifficultyValue(e.difficulty) &&
     typeof e.startedAt === "number" &&
     typeof e.updatedAt === "number"
   );
@@ -131,13 +161,127 @@ function isHistoryFile(value: unknown): value is HistoryFile {
   return Array.isArray(f.entries) && f.entries.every(isHistoryEntry);
 }
 
+/**
+ * The pre-score schema (version 1) — every field HistoryEntry has today
+ * except `score` and `difficulty`, neither of which existed yet. Kept only
+ * so loadAll() can recognize and migrate a still-around v1 store rather than
+ * discarding it outright on a version bump.
+ */
+interface HistoryEntryV1 {
+  id: string;
+  size: number;
+  seed: number;
+  attempt: number;
+  status: HistoryStatus;
+  elapsedMs: number;
+  startedAt: number;
+  updatedAt: number;
+}
+
+interface HistoryFileV1 {
+  version: 1;
+  entries: HistoryEntryV1[];
+}
+
+function isHistoryEntryV1(value: unknown): value is HistoryEntryV1 {
+  if (typeof value !== "object" || value === null) return false;
+  const e = value as Partial<HistoryEntryV1>;
+
+  return (
+    typeof e.id === "string" &&
+    e.id.length > 0 &&
+    typeof e.size === "number" &&
+    Number.isInteger(e.size) &&
+    e.size >= 1 &&
+    typeof e.seed === "number" &&
+    typeof e.attempt === "number" &&
+    Number.isInteger(e.attempt) &&
+    e.attempt >= 1 &&
+    isHistoryStatus(e.status) &&
+    typeof e.elapsedMs === "number" &&
+    e.elapsedMs >= 0 &&
+    typeof e.startedAt === "number" &&
+    typeof e.updatedAt === "number"
+  );
+}
+
+function isHistoryFileV1(value: unknown): value is HistoryFileV1 {
+  if (typeof value !== "object" || value === null) return false;
+  const f = value as Partial<HistoryFileV1>;
+  if (f.version !== 1) return false;
+  return Array.isArray(f.entries) && f.entries.every(isHistoryEntryV1);
+}
+
+/**
+ * The pre-difficulty schema (version 2) — every field HistoryEntry has today
+ * except `difficulty`, which didn't exist yet (this is exactly what v1
+ * becomes after migrateV1ToV2 below, and also what a real v2 store on disk
+ * looks like).
+ */
+interface HistoryEntryV2 extends HistoryEntryV1 {
+  score: number | null;
+}
+
+interface HistoryFileV2 {
+  version: 2;
+  entries: HistoryEntryV2[];
+}
+
+function isHistoryEntryV2(value: unknown): value is HistoryEntryV2 {
+  if (!isHistoryEntryV1(value)) return false;
+  const e = value as Partial<HistoryEntryV2>;
+  return e.score === null || typeof e.score === "number";
+}
+
+function isHistoryFileV2(value: unknown): value is HistoryFileV2 {
+  if (typeof value !== "object" || value === null) return false;
+  const f = value as Partial<HistoryFileV2>;
+  if (f.version !== 2) return false;
+  return Array.isArray(f.entries) && f.entries.every(isHistoryEntryV2);
+}
+
+/**
+ * Upgrades a v1 store to v2 by adding `score: null` to every entry, rather
+ * than discarding pre-existing history outright on the version bump — a
+ * player's past games are worth keeping even though they predate scoring.
+ * Nothing is recomputed here: retroactively computing real scores for these
+ * entries would need every input computeScore() takes (size, difficulty,
+ * elapsedMs), and a v1 entry has no recorded difficulty at all — there's no
+ * honest score to backfill, only a guess, so this leaves it null instead.
+ */
+function migrateV1ToV2(file: HistoryFileV1): HistoryFileV2 {
+  return {
+    version: 2,
+    entries: file.entries.map((e) => ({ ...e, score: null })),
+  };
+}
+
+/**
+ * Upgrades a v2 store to v3 by defaulting `difficulty` to "medium" for every
+ * entry — same reasoning and same fallback persistence.ts's migrateV1 uses
+ * for SavedGame: a v2 entry predates the difficulty concept entirely, so
+ * there's no real value to recover, just a reasonable default. Existing
+ * `score` values (already null for anything that went through
+ * migrateV1ToV2) are left exactly as they are — this migration only adds
+ * `difficulty`, it doesn't touch or recompute score.
+ */
+function migrateV2ToV3(file: HistoryFileV2): HistoryFile {
+  return {
+    version: CURRENT_VERSION,
+    entries: file.entries.map((e) => ({ ...e, difficulty: "medium" })),
+  };
+}
+
 /** Reads the stored entries, or [] if there are none or the store is unreadable/corrupt. */
 function loadAll(): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) return [];
     const parsed: unknown = JSON.parse(raw);
-    return isHistoryFile(parsed) ? parsed.entries : [];
+    if (isHistoryFile(parsed)) return parsed.entries;
+    if (isHistoryFileV2(parsed)) return migrateV2ToV3(parsed).entries;
+    if (isHistoryFileV1(parsed)) return migrateV2ToV3(migrateV1ToV2(parsed)).entries;
+    return [];
   } catch {
     return [];
   }
@@ -229,11 +373,29 @@ let abandoned = false;
  * comment) falling back to an existing "playing" entry for this exact
  * (size, seed); otherwise starts a new one, with `attempt` computed as
  * (however many entries already exist for this board) + 1.
+ *
+ * `score` is optional and, when omitted on an *update* to an existing entry,
+ * leaves whatever score was already stored untouched rather than nulling it
+ * out — a later stray call that omits it (e.g. the same beforeunload race
+ * `abandoned` guards against elsewhere in this file) must not silently erase
+ * a real score already written. Omitting it on a *brand-new* entry just
+ * leaves that entry scoreless (null), same as any other not-yet-scored
+ * attempt.
+ *
+ * `difficulty` is required (unlike `score`): it's fixed for the whole
+ * attempt from the moment it starts, so — unlike a score, which only exists
+ * once an attempt finishes — every call, including the very first
+ * "playing" checkpoint, always has a real value to write.
  */
 export function recordAttempt(
   size: number,
   seed: number,
-  patch: { status: HistoryStatus; elapsedMs: number },
+  patch: {
+    status: HistoryStatus;
+    elapsedMs: number;
+    difficulty: Difficulty;
+    score?: number | null;
+  },
 ): void {
   if (abandoned) return;
 
@@ -250,10 +412,13 @@ export function recordAttempt(
   }
 
   if (index !== -1) {
+    const existing = entries[index];
     entries[index] = {
-      ...entries[index],
+      ...existing,
       status: patch.status,
       elapsedMs: patch.elapsedMs,
+      difficulty: patch.difficulty,
+      score: patch.score !== undefined ? patch.score : existing.score,
       updatedAt: now,
     };
     currentAttemptId.set(key, entries[index].id);
@@ -267,6 +432,8 @@ export function recordAttempt(
       attempt,
       status: patch.status,
       elapsedMs: patch.elapsedMs,
+      difficulty: patch.difficulty,
+      score: patch.score ?? null,
       startedAt: now,
       updatedAt: now,
     });
@@ -309,7 +476,15 @@ export function resetSessionForTests(): void {
 export function closeOutInProgress(): void {
   const saved = loadGame();
   if (saved !== null && saved.gameState === 0) {
-    recordAttempt(saved.size, saved.seed, { status: "abandoned", elapsedMs: saved.elapsedMs });
+    recordAttempt(saved.size, saved.seed, {
+      status: "abandoned",
+      elapsedMs: saved.elapsedMs,
+      difficulty: saved.difficulty,
+      // Abandoning always scores 0, same as a loss — computeScore() already
+      // encodes that (only "won" ever earns points), so this reuses it
+      // rather than hardcoding 0 a second time.
+      score: computeScore(saved.size, saved.difficulty, saved.elapsedMs, "abandoned"),
+    });
   }
   abandoned = true;
 }

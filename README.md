@@ -185,10 +185,10 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] confirm works
   - [x] move to top left of board view (in same row as timer & guesses
         remaining counter UI)
-- [/] start over button
-  - [ ] confirm starting over
-  - [x] fix placement (located "next to" new game button now, but in a new line
-        instead of inline w/ it in the same row)
+- [x] start over button
+  - [x] confirm starting over
+  - [x] fix placement (now inline w/ new game button in the same `#below-board`
+        row)
 - [ ] #help help button to view game rules & some strategy tips
 - [ ] #help skippable new user tutorial via a guided first game where modals
       appear pointing to cells/regions/UI elements explaining the following things:
@@ -219,18 +219,24 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     - [ ] game history
     - [ ] user preferences
     - [ ] leaderboard (if opted in)
-- [/] #history game history persistence - store history of games played in localstate
-  - [?] data persistence
-  - [ ] history button to view previous games (located in user profile menu)
-  - [ ] history view (in drawer?)
-  - [ ] allow filtering & sorting games in history view
+- [x] #history game history persistence - store history of games played in localstate
+  - [x] data persistence
+  - [x] history button to view previous games (located in user profile menu)
+  - [x] history view (in drawer?)
+  - [x] allow filtering & sorting games in history view
+- [ ] #persistence resume bug: navigating to a URL for a board size that has a
+      *finished* (won/lost) save silently resumes that finished game instead
+      of starting fresh — `resumableSave()` matches on size alone & doesn't
+      check the saved game is still in progress. Masked in normal play since
+      "New game" always goes through the options drawer rather than a raw
+      `?size=` navigation, but a bookmarked/typed URL hits it.
 - [ ] #user-score long term score tracking (using localstate)
-  - [ ] button for starting new game on same board as each history entry
-  - [ ] button for sharing game on same board from each history entry
+  - [x] button for starting new game on same board as each history entry
+  - [x] button for sharing game on same board from each history entry
 - [ ] generalize start over confirmation dialog for any time user tries to
       start a new game while a current game is already active
 - [/] add borders around regions
-- [/] desaturate cell colors a little to leave emphasis on the marks (queen, x,
+- [x] desaturate cell colors a little to leave emphasis on the marks (queen, x,
   empty)
 - [ ] #timer: pause timer whenever user is in a modal/menu/drawer
 - [ ] #timer: obscure game board (pixelate it maybe?) whenever timer is paused

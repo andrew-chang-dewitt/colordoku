@@ -1,0 +1,221 @@
+/* Same bottom-sheet <dialog> treatment as options.module.css's .drawer —
+ * duplicated rather than shared, matching this codebase's existing pattern
+ * of each component owning its own chrome (see gameover.module.css's .modal
+ * doing the same thing for a centered dialog instead). */
+
+.drawer {
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow: auto;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border-radius: 0.75em 0.75em 0 0;
+  box-shadow: 0 -0.5em 1.5em rgb(0 0 0 / 0.3);
+
+  translate: 0 100%;
+  transition:
+    translate 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open] {
+  translate: 0 0;
+}
+
+@starting-style {
+  .drawer[open] {
+    translate: 0 100%;
+  }
+}
+
+.drawer::backdrop {
+  background-color: rgb(0 0 0 / 0);
+  transition:
+    background-color 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open]::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+@starting-style {
+  .drawer[open]::backdrop {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer::backdrop {
+    transition-duration: 1ms;
+  }
+}
+
+/* Covers the dialog's whole box, same "click landed on the dialog itself ==
+ * backdrop" trick options.ts's .form uses — padding lives here instead of on
+ * .drawer for that reason. */
+.panel {
+  padding: 1.5em;
+  margin: 0 auto;
+  max-width: 32em;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.3em;
+}
+
+.close {
+  flex-shrink: 0;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  margin-bottom: 1.25em;
+}
+
+.field {
+  flex: 1;
+  min-width: 9em;
+}
+
+.field label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+.select {
+  padding: 0.4em;
+  font: inherit;
+  font-size: 0.95em;
+  font-weight: normal;
+  color: var(--color-on-surface);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25em;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--color-on-surface);
+  outline-offset: 1px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.85em;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5em;
+}
+
+.entryMain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6em;
+}
+
+.entrySize {
+  font-weight: bold;
+}
+
+.entryStatus {
+  padding: 0.15em 0.55em;
+  font-size: 0.8em;
+  font-weight: bold;
+  border-radius: 1em;
+}
+
+/* Reuses the same queen/error tokens gameover.module.css's .won/.lost do, so
+ * a won/lost entry reads as the same signal here as it did in that modal. */
+.statusWon {
+  color: var(--color-surface);
+  background-color: var(--color-queen);
+}
+
+.statusLost {
+  color: var(--color-surface);
+  background-color: var(--color-error);
+}
+
+.statusPlaying {
+  color: var(--color-on-surface);
+  background-color: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+}
+
+.statusAbandoned {
+  color: var(--color-on-surface);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.entryDifficulty {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.entryAttempt {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.entryScore {
+  font-size: 0.85em;
+  font-weight: bold;
+  margin-left: auto;
+}
+
+.entryMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.entryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.emptyState {
+  margin: 1.5em 0;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.emptyState[hidden] {
+  display: none;
+}

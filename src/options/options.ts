@@ -6,12 +6,18 @@ import { closeOutInProgress } from "../persistence/history";
 const DEFAULT_SIZE = 8;
 
 export type Difficulty = "easy" | "medium" | "hard";
-const DEFAULT_DIFFICULTY: Difficulty = "medium";
+/** Exported: main.ts falls back to this when the URL has no (or an invalid) `?difficulty=`, same role DEFAULT_SIZE plays for `?size=`. */
+export const DEFAULT_DIFFICULTY: Difficulty = "medium";
 const DIFFICULTIES: ReadonlyArray<{ value: Difficulty; label: string }> = [
   { value: "easy", label: "Easy" },
   { value: "medium", label: "Medium" },
   { value: "hard", label: "Hard" },
 ];
+
+/** Exported for main.ts's URL-param validation — see DEFAULT_DIFFICULTY's doc comment. */
+export function isDifficulty(value: unknown): value is Difficulty {
+  return value === "easy" || value === "medium" || value === "hard";
+}
 
 export interface Options {
   html: HTMLDialogElement;
@@ -32,8 +38,8 @@ export interface OptionsConfig {
    * newOptions() below), so this only controls which option starts selected.
    */
   difficulty?: Difficulty;
-  /** Defaults to navigating to `?size=N`. Injectable so tests need no navigation. */
-  onSubmit?: (size: number) => void;
+  /** Defaults to navigating to `?size=N&difficulty=D`. Injectable so tests need no navigation. */
+  onSubmit?: (size: number, difficulty: Difficulty) => void;
 }
 
 /**
@@ -53,11 +59,16 @@ export interface OptionsConfig {
  * is still readable, so a genuinely-in-progress attempt is finalized as
  * "abandoned" in history rather than left stuck as "playing" forever (see
  * that function's doc comment in persistence/history.ts).
+ *
+ * Carries `difficulty` into the URL alongside `size`, the same way
+ * `?board-id=` carries a seed — difficulty now factors into scoring (see
+ * persistence/score.ts), so it has to survive the navigation just like size
+ * does, not just live as transient in-memory drawer state.
  */
-export function goToSize(size: number): void {
+export function goToSize(size: number, difficulty: Difficulty): void {
   closeOutInProgress();
   abandonGame();
-  location.assign(`?size=${size}`);
+  location.assign(`?size=${size}&difficulty=${difficulty}`);
 }
 
 /**
@@ -81,11 +92,14 @@ export function goToSize(size: number): void {
  * logic to get right — main.ts already knows how to boot a board from
  * `?size=`+`?board-id=` correctly. See goToSize's doc comment for why
  * closeOutInProgress() must run first, and abandonGame() before navigating.
+ *
+ * Carries `difficulty` too, same reasoning as goToSize — the board being
+ * replayed keeps whatever difficulty it was already being played under.
  */
-export function startOver(size: number, seed: number): void {
+export function startOver(size: number, seed: number, difficulty: Difficulty): void {
   closeOutInProgress();
   abandonGame();
-  location.assign(`?size=${size}&board-id=${seed}`);
+  location.assign(`?size=${size}&board-id=${seed}&difficulty=${difficulty}`);
 }
 
 function clampToRange(size: number): number {
@@ -99,6 +113,10 @@ export function newOptions({
   onSubmit = goToSize,
 }: OptionsConfig = {}): Options {
   let dismissable = true;
+  // Tracked alongside the radio group itself (rather than re-querying
+  // `:checked` at submit time) so submit's read is a plain variable access —
+  // updated by each radio's own change listener below.
+  let selectedDifficulty: Difficulty = difficulty;
 
   const html = document.createElement("dialog");
   html.className = classes.drawer;
@@ -140,11 +158,11 @@ export function newOptions({
 
   form.append(sizeField);
 
-  // Difficulty selector: UI only, per the product call on this pass — there
-  // is deliberately no behavior wired to it yet (maxGuessesFor() in
-  // board.ts still drives guesses-per-board on its own, untouched). This
-  // just gets the control in place, styled, with a sensible default
-  // ("medium") — a future pass connects it to actual generation/gameplay.
+  // Difficulty selector. Factors into scoring now (see persistence/score.ts)
+  // but still has no effect on generation or the guess count itself —
+  // maxGuessesFor() in board.ts still drives that on its own, untouched;
+  // wiring difficulty into actual generation/gameplay is #board-generation's
+  // still-open TODO, a separate piece of work from scoring.
   const difficultyField = document.createElement("fieldset");
   difficultyField.className = classes.difficulty;
 
@@ -168,6 +186,9 @@ export function newOptions({
     radio.name = "difficulty";
     radio.value = value;
     radio.checked = value === difficulty;
+    radio.addEventListener("change", () => {
+      if (radio.checked) selectedDifficulty = value;
+    });
     choice.append(radio);
 
     const choiceLabel = document.createElement("label");
@@ -211,7 +232,7 @@ export function newOptions({
       return;
     }
 
-    onSubmit(value);
+    onSubmit(value, selectedDifficulty);
   });
 
   html.addEventListener("cancel", (event) => {

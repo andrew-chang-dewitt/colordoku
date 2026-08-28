@@ -2,7 +2,6 @@ import type { Cell } from "../cell/cell";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
-import cellClasses from "../cell/cell.module.css";
 
 export interface Board {
   state: Cell[][];
@@ -64,31 +63,58 @@ export function cellsBetween(from: Coord, to: Coord): Coord[] | null {
 }
 
 /**
- * Marks each cell's right/bottom edge (via cell.module.css's
- * .regionEdgeRight/.regionEdgeBottom) when the neighbor on that side belongs
- * to a different region (`.group`), so a region-crossing edge gets a bolder,
- * darker line distinct from the lighter uniform hairline every other
- * internal gap gets (#board's --board-gap/--color-grid in style.css).
+ * Sets each cell's four --edge-{top,right,bottom,left}-{w,c} custom
+ * properties (see cell.module.css's .cell box-shadow, which reads them) to
+ * pick the *heavy* region-boundary treatment (--region-edge-width /
+ * --color-region-edge) wherever one is called for; every side left alone
+ * keeps cell.module.css's own default — light-uniform for right/bottom,
+ * fully unpainted for top/left.
  *
- * Only ever compares a cell to its actual right/bottom neighbor within the
- * grid — a cell on the board's last column/row has none there, so the
- * board's own outer edge never gets this treatment; it isn't a boundary
- * between two regions, just the edge of the grid. Checking only right+bottom
- * (not left+top too) still covers every internal edge in the grid exactly
- * once, from the cell on that edge's up/left side, without double-processing
- * the same boundary from both sides.
+ * #board has no grid `gap` any more (style.css's --board-gap: 0) — cells sit
+ * truly adjacent, so every edge in the grid, including the board's own outer
+ * perimeter, must be painted by *exactly one* owning cell or corners and
+ * mismatched-adjacent-bands reappear (see cell.module.css's comment on
+ * .cell for the full reasoning). The ownership rule, extended from the
+ * original right/bottom-only version to also cover the board's perimeter:
+ *
+ *  - right/bottom: every cell owns these. Heavy when there's no neighbor
+ *    there at all (last column/row — the board's own edge) *or* when the
+ *    neighbor's `.group` differs (an actual region crossing); otherwise left
+ *    at the light default (same-region internal edge).
+ *  - top/left: a cell owns these *only* when there's no neighbor there
+ *    (first row/column) — an ordinary internal top/left edge is always
+ *    already owned by the neighbor's own bottom/right side, so touching it
+ *    here would double-paint that shared edge. The only case top/left is
+ *    ever set at all is therefore the board's own perimeter, always heavy
+ *    (no neighbor is definitionally a region's outer edge, never a
+ *    same-region internal one).
  */
 export function applyRegionBoundaries(cells: Cell[][]): void {
+  const HEAVY_W = "var(--region-edge-width)";
+  const HEAVY_C = "var(--color-region-edge)";
+
   cells.forEach((row, r) => {
     row.forEach((cell, c) => {
       const right = row[c + 1];
-      if (right !== undefined && right.group !== cell.group) {
-        cell.html.classList.add(cellClasses.regionEdgeRight);
+      if (right === undefined || right.group !== cell.group) {
+        cell.html.style.setProperty("--edge-right-w", HEAVY_W);
+        cell.html.style.setProperty("--edge-right-c", HEAVY_C);
       }
 
       const below = cells[r + 1]?.[c];
-      if (below !== undefined && below.group !== cell.group) {
-        cell.html.classList.add(cellClasses.regionEdgeBottom);
+      if (below === undefined || below.group !== cell.group) {
+        cell.html.style.setProperty("--edge-bottom-w", HEAVY_W);
+        cell.html.style.setProperty("--edge-bottom-c", HEAVY_C);
+      }
+
+      if (c === 0) {
+        cell.html.style.setProperty("--edge-left-w", HEAVY_W);
+        cell.html.style.setProperty("--edge-left-c", HEAVY_C);
+      }
+
+      if (r === 0) {
+        cell.html.style.setProperty("--edge-top-w", HEAVY_W);
+        cell.html.style.setProperty("--edge-top-c", HEAVY_C);
       }
     });
   });

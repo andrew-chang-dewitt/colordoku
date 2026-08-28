@@ -15,7 +15,7 @@
    * Region colors are backgrounds now, not the visual focus — see
    * cell.module.css's .found/.error, which stay saturated and are the thing
    * a player's eye should land on. */
-  --group-desaturate: 78%; /* fraction of the original hue kept; rest is neutral gray */
+  --group-desaturate: 45%; /* fraction of the original hue kept; rest is neutral gray */
 
   --color-group-0-raw: #75eab6;
   --color-group-1-raw: #47a350;
@@ -132,6 +132,17 @@
     var(--color-on-surface) 55%,
     var(--color-border)
   );
+  /* The region-crossing/board-perimeter hairline (cell.module.css's .cell
+   * box-shadow, toggled per-side by board.ts's applyRegionBoundaries() via
+   * the --edge-*-c custom properties) — deliberately flat
+   * var(--color-on-surface), not another color-mix() blend like --color-grid
+   * above: it needs to read as *visibly* heavier/darker than the uniform
+   * --color-grid hairline, not just a shade off it, and --color-on-surface is
+   * already the strongest ink token the app has. No redefinition needed in
+   * the dark-scheme block below: this only ever aliases
+   * var(--color-on-surface), which the cascade resolves against whichever
+   * scheme is active on :root at compute time. */
+  --color-region-edge: var(--color-on-surface);
 
   --layout-gap: 1em;
 }
@@ -356,12 +367,30 @@ button.group-15 {
 #board {
   /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
 
-  /* Gap and padding are deliberately *fixed* (rem, not em, and not derived from
-   * --cell-size): they are hairlines whose job is to separate regions, so they
-   * should not shrink to invisibility on a 16x16 phone board nor balloon on a
-   * 4x4 desktop one. Being constants also keeps the fit maths below linear —
-   * a gap that depended on --cell-size would make --cell-size self-referential. */
-  --board-gap: 0.16rem;
+  /* --board-gap is 0, not a hairline-sized constant any more: region
+   * boundaries (see cell.module.css's .cell box-shadow and board.ts's
+   * applyRegionBoundaries()) are now painted per-cell via inset box-shadow,
+   * which requires cells to be genuinely adjacent — a real CSS grid `gap`
+   * between them would be an untouched strip no cell's box-shadow can paint
+   * into, which is exactly what caused the old corner-gap/mismatched-line
+   * bug this replaces. --board-pad stays a small fixed constant (not
+   * derived from --cell-size, same reasoning as before: it must not shrink
+   * to invisibility on a big board nor balloon on a small one) purely for
+   * the rounded-corner frame's breathing room now — it plays no part in the
+   * boundary system any more, unlike before.
+   *
+   * --board-gap is `0rem`, not bare `0`: --board-chrome's calc() below adds
+   * it to --board-pad (a length) — a bare unitless `0` multiplied out in
+   * that calc() stays a <number>, and CSS calc() treats adding a <number>
+   * to a <length> as a type mismatch, making the whole expression invalid
+   * at computed-value time. That invalidity doesn't fail quietly: it
+   * propagates through --board-chrome into --cell-size's calc() (which
+   * consumes it) and from there into grid-template-columns, collapsing the
+   * entire grid to a single 0px track — confirmed by an actual
+   * getComputedStyle() readout (gridTemplateColumns: "0px",
+   * button height/width: "0px") while chasing exactly this bug, not
+   * inferred from behavior alone. */
+  --board-gap: 0rem;
   --board-pad: 0.2rem;
 
   /* Everything in the grid's width/height that is not cell: the gaps between
@@ -407,11 +436,16 @@ button.group-15 {
   display: grid;
   grid-template-columns: repeat(var(--board-size, 4), var(--cell-size));
   gap: var(--board-gap);
-  /* --color-grid (not --color-border): the region-boundary hairline needs to
-   * read as heavier/darker than ordinary chrome borders now that the region
-   * colors themselves are more muted, without darkening the modal border /
-   * spinner ring that still share --color-border. See --color-grid's
-   * definition above. */
+  /* --color-grid (not --color-border): no longer part of the boundary system
+   * itself (that's all per-cell box-shadow now — see cell.module.css's
+   * .cell and board.ts's applyRegionBoundaries()), since --board-gap is 0
+   * and nothing shows through it any more. Kept purely as a same-family
+   * fallback behind the rounded-corner clip below (border-radius +
+   * overflow: hidden), so no stray page-background sliver can appear at a
+   * clipped corner; --color-border wouldn't be wrong here either, but
+   * --color-grid keeps this in the same darker family the perimeter cells'
+   * own heavy edges now use, rather than reverting to the lighter chrome
+   * token shared with the modal border/spinner ring. */
   background-color: var(--color-grid);
   border-radius: 0.4rem;
   /* Same understated "lifted off the page" treatment as .modal's box-shadow,

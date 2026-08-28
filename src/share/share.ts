@@ -51,17 +51,43 @@ export function newShareButton({
   const html = document.createElement("button");
   html.type = "button";
   html.className = `btn btn-secondary`;
-  html.textContent = DEFAULT_LABEL;
+
+  // The classic iOS share glyph (an arrow pointing up out of an open-top
+  // tray) — user-picked from three candidates (iOS box+arrow, Material
+  // three-nodes, arrow-out-of-a-box). Plain inline SVG, no icon font/library:
+  // this app has no dependency for one. `stroke="currentColor"` picks up
+  // .btn-secondary's text color automatically in both themes, so it needs no
+  // color of its own. Decorative only (aria-hidden) — the "Share" label
+  // right next to it already says what the button does.
+  const icon = document.createElement("span");
+  icon.setAttribute("aria-hidden", "true");
+  icon.style.display = "inline-flex";
+  icon.style.marginRight = "0.35em";
+  icon.style.verticalAlign = "-0.15em";
+  icon.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M12 16V4"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>' +
+    "</svg>";
+  html.append(icon);
+
+  // A separate node from the icon so flash() below can swap just the text
+  // (the "Link copied!" confirmation, or the raw URL fallback) without
+  // clobbering the icon — button.textContent still reads as just this
+  // span's text either way, since the bare <svg> above contributes no text
+  // nodes of its own.
+  const labelSpan = document.createElement("span");
+  labelSpan.textContent = DEFAULT_LABEL;
+  html.append(labelSpan);
 
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Swaps the button's label to `message` for `ms`, then restores it — the confirmation itself. */
   function flash(message: string, ms: number): void {
     if (resetTimer !== null) clearTimeout(resetTimer);
-    html.textContent = message;
+    labelSpan.textContent = message;
     html.disabled = true;
     resetTimer = setTimeout(() => {
-      html.textContent = DEFAULT_LABEL;
+      labelSpan.textContent = DEFAULT_LABEL;
       html.disabled = false;
       resetTimer = null;
     }, ms);

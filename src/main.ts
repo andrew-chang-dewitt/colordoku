@@ -2,14 +2,18 @@ import "./style.css";
 import type { Board } from "./board/board";
 import { newBoard } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
-import { newOptions, goToSize, startOver } from "./options/options";
+import type { Difficulty } from "./options/options";
+import { newOptions, goToSize, startOver, isDifficulty, DEFAULT_DIFFICULTY } from "./options/options";
 import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
 import { loadGame, saveGame } from "./persistence/persistence";
 import { recordAttempt, statusFromGameState } from "./persistence/history";
+import { computeScore } from "./persistence/score";
 import { buildShareUrl, newShareButton } from "./share/share";
 import { newStartOverButton } from "./startover/startover";
+import { newHistoryView } from "./historyview/historyview";
+import { newUserMenu } from "./usermenu/usermenu";
 
 const app = document.querySelector("#app")!;
 
@@ -24,9 +28,16 @@ const params = new URLSearchParams(location.search);
 const sizeParam = params.get("size");
 const boardIdParam = params.get("board-id");
 const seed = boardIdParam === null ? undefined : Number(boardIdParam);
+// Same fallback shape as size/seed above: an invalid or missing
+// `?difficulty=` resolves to the app's own default rather than failing —
+// this is only the *URL's* difficulty though; a resumable SavedGame's own
+// stored difficulty still wins inside main() below, same as seed does.
+const difficultyParam = params.get("difficulty");
+const urlDifficulty: Difficulty = isDifficulty(difficultyParam) ? difficultyParam : DEFAULT_DIFFICULTY;
 
 const options = newOptions({
   size: sizeParam === null ? undefined : Number(sizeParam),
+  difficulty: urlDifficulty,
 });
 app.append(options.html);
 
@@ -119,6 +130,7 @@ function resumableSave(size: number): SavedGame | null {
 function snapshot(
   board: Board,
   timer: ReturnType<typeof newTimer>,
+  difficulty: Difficulty,
 ): Omit<SavedGame, "version"> {
   return {
     size: board.game.size,
@@ -127,6 +139,7 @@ function snapshot(
     queensFound: board.game.queensFound,
     gameState: board.game.state,
     elapsedMs: timer.elapsedMs(),
+    difficulty,
     cells: board.state.map((row) =>
       row.map((cell) => ({ state: cell.state, frozen: cell.frozen })),
     ),
@@ -158,12 +171,15 @@ async function main(): Promise<void> {
   aboveBoardRow.append(aboveBoardRowRight);
   mainHtml.append(aboveBoardRow);
 
-  // TODO: replace this placeholder item w/ actual button for user data menu
-  const userMenuButton = document.createElement("button");
-  userMenuButton.innerText = "Menu?";
-  userMenuButton.id = "user-menu";
-  userMenuButton.className = "btn btn-secondary";
-  aboveBoardRowRight.append(userMenuButton);
+  // Independent of any particular board (it reads persistence/history.ts's
+  // whole stored history, not this session's), so it's built and wired here,
+  // before the try block, rather than gated on a successful board load like
+  // the share/start-over buttons are.
+  const historyView = newHistoryView({ onPlayAgain: startOver });
+  app.append(historyView.html);
+
+  const userMenu = newUserMenu({ onOpenHistory: () => historyView.open() });
+  aboveBoardRowRight.append(userMenu.html);
 
   // placeholder for board while generating (spinner & cancel button)
   const size = Number(sizeParam);
@@ -186,6 +202,12 @@ async function main(): Promise<void> {
     // region/queen layout; player progress (marks, guesses, elapsed time) is
     // then re-applied on top of that freshly generated board below.
     const board = await newBoard(size, saved?.seed ?? seed, controller.signal);
+    // Same precedence as size/seed above: a resumed game's own recorded
+    // difficulty wins over whatever the current URL says (a share link or
+    // bookmark might carry no `?difficulty=`, or a different one, from a
+    // later visit) — this is the one authoritative difficulty value for the
+    // rest of this session, used for both persistence and scoring below.
+    const difficulty: Difficulty = saved?.difficulty ?? urlDifficulty;
     aboveBoardRowCenter.append(board.htmlHud);
 
     mainHtml.append(board.htmlBoard);
@@ -245,12 +267,12 @@ async function main(): Promise<void> {
     // definite-assignment narrowing into a closure for a mutable outer
     // binding, so those reference this const instead of the outer variable.
     const startOverBtn = newStartOverButton({
-      onConfirm: () => startOver(size, board.seed),
+      onConfirm: () => startOver(size, board.seed, difficulty),
     });
     startOverButton = startOverBtn;
 
     const gameOver = newGameOver({
-      onNewGame: () => goToSize(size),
+      onNewGame: () => goToSize(size, difficulty),
       onChangeOptions: () => options.open({ dismissable: true }),
     });
     app.append(gameOver.html);
@@ -263,11 +285,27 @@ async function main(): Promise<void> {
     // checkpoint always writes "playing" and the very last persist() after
     // onEnd (game.state already flipped to 1/2 by then) writes the real
     // won/lost outcome — no separate "finalize" call needed here.
+    //
+    // Score is only ever computed once status is actually final — see
+    // persistence/score.ts's computeScore, whose FinishedStatus type
+    // excludes "playing" on purpose. Every "playing" checkpoint here still
+    // writes `score: null` explicitly (rather than omitting it) so a stray
+    // late checkpoint can never accidentally leave a *stale* score sitting
+    // on an entry that's since gone back to "playing" — not a real scenario
+    // today (status only ever moves forward: playing -> won/lost/abandoned,
+    // never back), but cheap to make impossible outright rather than rely
+    // on that invariant holding forever.
     const persist = (): void => {
-      saveGame(snapshot(board, timer));
+      saveGame(snapshot(board, timer, difficulty));
+      const status = statusFromGameState(board.game.state);
       recordAttempt(board.game.size, board.seed, {
-        status: statusFromGameState(board.game.state),
+        status,
         elapsedMs: timer.elapsedMs(),
+        difficulty,
+        score:
+          status === "playing"
+            ? null
+            : computeScore(board.game.size, difficulty, timer.elapsedMs(), status),
       });
     };
 
