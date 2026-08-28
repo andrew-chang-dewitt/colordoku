@@ -48,7 +48,7 @@ Most modules are factory functions, each returning an object literal holding sta
   frozen)` re-hydrates a cell from a `SavedGame` snapshot (bypassing the frozen guard),
   and `mark(state)` sets 0/1 externally — used by `board.ts`'s range gestures — without
   touching found/error styling or freezing the cell, so it's never mistaken for a guess.
-- `src/board/board.ts` — `newBoard(size, seed?, signal?)`, **async**. Builds the game
+- `src/board/board.ts` — `newBoard(size, difficulty, seed?, signal?)`, **async**. Builds the game
   HUD and the grid, sets `--board-size` inline so the CSS grid gets its column count, and
   calls `attachRangeGestures(board, cells)` to wire up multi-cell marking: shift+click a
   pair of cells toggles every non-frozen cell between them (`cellsBetween` computes that
@@ -146,7 +146,14 @@ compile it.
   on enumeration order.
 - `generate.rs` — place queens, grow regions around them, then `refine_unique` reshapes
   regions until only the intended solution survives. **Region id equals the row index of
-  its seed** — load-bearing, and easy to break.
+  its seed** — load-bearing, and easy to break. `refine_unique` returns the winning
+  board's *hardness* — the solver-node count of the `solve_counted` call that confirmed
+  uniqueness — as a proxy for how hard the puzzle is to solve logically. `GenOptions`'s
+  `Difficulty`-driven `hardness_band` (n=6..=12 only so far, see `for_size`'s doc comment
+  and `examples/hardness_survey.rs` for the measurement) makes `generate_with`'s restart
+  loop keep trying until a candidate's hardness lands in that tier's band — a board
+  outside the band isn't invalid, just not the requested difficulty, so it's discarded
+  like any other restart rather than erroring.
 - `rng.rs` — hand-rolled splitmix64 + xoshiro256**, seeded from JS. Avoids
   `getrandom`'s wasm build flags and makes boards reproducible from a seed.
 - `grid.rs`, `render.rs`, `error.rs`, `wasm.rs` (the only file touching wasm-bindgen).
@@ -196,3 +203,11 @@ single-worker, deterministically, exactly as before.
 CSS Modules (`*.module.css`) per component, imported as `classes.xxx`. Region colours
 are *global* classes composed by hand (`group-${group}` in `cell.ts`), defined in
 `src/style.css` for both light and dark schemes.
+
+## Docs
+
+README's `### TODO` section is the single source of truth for the task backlog
+(checkbox + `#tag` legend at the top of that section). `docs/plans/` holds fuller
+implementation plans for individual TODO items, one file per task, referenced from the
+TODO line by its `#tag` — write there when a task needs more design than a checkbox
+can hold, but keep the backlog entry itself in README.

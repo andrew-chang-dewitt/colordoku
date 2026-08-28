@@ -161,11 +161,13 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
 - [x] UI to start a new game
   - [x] difficulty modifier UI
 - [x] UI for giving a board size & generating a board to match
-- [?] make the largest boards practical — generation discards a whole layout
-  whenever refinement gets stuck, and the restart count climbs sharply past
-  13 (a 14x14 needed 282 restarts in one sample)
-- [ ] #board-generation a difficulty modifier in board generation module that
+- [x] make the largest boards practical — generation discards a whole layout
+      whenever refinement gets stuck, and the restart count climbs sharply past
+      13 (a 14x14 needed 282 restarts in one sample)
+- [/] #board-generation a difficulty modifier in board generation module that
       can influence board generation & max number of incorrect guesses allowed
+      (plan: `docs/plans/board-generation-difficulty.md`) — guess-count half
+      (Phase 1) done; generation-hardness half (Phase 2) still open
 - [/] UI indicating a game was won or lost
   - [ ] improve win UI by making it a little more celebratory, maybe add things
         like a confetti animation popping in from the sides angled up at 45ish
@@ -203,29 +205,32 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
         easy game & not at all tied to the completion time, just a fixed amount for
         all new users who complete the tutorial)
   - [ ] finally: point out help button at start of first real game
-- [ ] #user-score calculate some sort of "score" value based on board size, difficulty, &
-      completion time
-  - [i] determine how to score losses (are they negative? no score at all?
-    number of attempts to reach a win influences score?)
+- [/] #user-score calculate some sort of "score" value based on board size, difficulty, &
+  completion time
+  - [x] determine how to score losses (are they negative? no score at all?
+        number of attempts to reach a win influences score?)
   - [ ] track cumulative score over time ranges (today, this week, this month,
         this year, all time) for local user history
-- [/] #user-data user profile menu button
+- [x] #user-data user profile menu button
   - [x] in the top right of the board view (in same row as timer & guesses
         remaining counter UI)
   - [x] visible even when generating a board & in top row still (e.g. spinner,
         board placeholder, & cancel button all below it)
-  - [ ] opens small drop-down menu for accessing information associated w/
+  - [x] opens small drop-down menu for accessing information associated w/
         user, including the following:
-    - [ ] game history
-    - [ ] user preferences
-    - [ ] leaderboard (if opted in)
+    - [x] game history
+    - [x] user preferences
+    - [x] leaderboard (if opted in)
+- [ ] user preferences to control
+  - [ ] if opted into leaderboard
+  - [ ] clear local state
 - [x] #history game history persistence - store history of games played in localstate
   - [x] data persistence
   - [x] history button to view previous games (located in user profile menu)
   - [x] history view (in drawer?)
   - [x] allow filtering & sorting games in history view
 - [ ] #persistence resume bug: navigating to a URL for a board size that has a
-      *finished* (won/lost) save silently resumes that finished game instead
+      _finished_ (won/lost) save silently resumes that finished game instead
       of starting fresh — `resumableSave()` matches on size alone & doesn't
       check the saved game is still in progress. Masked in normal play since
       "New game" always goes through the options drawer rather than a raw
@@ -235,9 +240,9 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] button for sharing game on same board from each history entry
 - [ ] generalize start over confirmation dialog for any time user tries to
       start a new game while a current game is already active
-- [/] add borders around regions
+- [x] add borders around regions
 - [x] desaturate cell colors a little to leave emphasis on the marks (queen, x,
-  empty)
+      empty)
 - [ ] #timer: pause timer whenever user is in a modal/menu/drawer
 - [ ] #timer: obscure game board (pixelate it maybe?) whenever timer is paused
 - [ ] speed up perception of large board generation by generating boards w/ n >
