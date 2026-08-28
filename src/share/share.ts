@@ -23,7 +23,7 @@ export interface ShareButtonConfig {
   /** Called fresh on every click, not cached — the URL only ever depends on values fixed at board-creation, but this keeps the button honest if that ever stops being true. */
   getUrl: () => string;
   title?: string;
-  text?: string;
+  text?: string | (() => string);
 }
 
 export interface ShareButton {
@@ -116,10 +116,11 @@ export function newShareButton({
 
   async function share(): Promise<void> {
     const url = getUrl();
+    const resolvedText = typeof text === "function" ? text() : text;
 
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title, text, url });
+        await navigator.share({ title, text: resolvedText, url });
         return;
       } catch (err) {
         // The user closed the native share sheet without picking a target —

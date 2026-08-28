@@ -9,10 +9,22 @@
   background-color: var(--color-surface);
   color: var(--color-on-surface);
   box-shadow: 0 0.5em 1.5em rgb(0 0 0 / 0.3);
+  position: relative;
 }
 
 .modal::backdrop {
   background-color: rgb(0 0 0 / 0.55);
+}
+
+.confetti {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 0.75em;
 }
 
 .heading {
@@ -34,9 +46,46 @@
   margin: 0 0 1.25em;
 }
 
+.score {
+  margin: 0 0 1.25em;
+  font-weight: 500;
+}
+
+.confettiPiece {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color);
+  left: var(--x-start);
+  bottom: -10px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .confettiPiece {
+    animation: fall var(--duration) ease-in forwards;
+    animation-delay: var(--delay);
+  }
+
+  @keyframes fall {
+    0% {
+      opacity: 1;
+      transform: translateY(0) translateX(0) rotate(0deg);
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-200px) translateX(var(--x-offset)) rotate(720deg);
+    }
+  }
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.5em;
+  position: relative;
 }

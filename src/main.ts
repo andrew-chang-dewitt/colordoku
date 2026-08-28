@@ -275,6 +275,9 @@ async function main(): Promise<void> {
     const gameOver = newGameOver({
       onNewGame: () => goToSize(size, difficulty),
       onChangeOptions: () => options.open({ dismissable: true }),
+      onTryAgain: () => startOver(size, board.seed, difficulty),
+      getShareUrl: () =>
+        buildShareUrl(size, board.seed, location.origin, location.pathname),
     });
     app.append(gameOver.html);
 
@@ -312,7 +315,10 @@ async function main(): Promise<void> {
 
     board.game.onEnd((state) => {
       timer.stop();
-      gameOver.show({ state, elapsedMs: timer.elapsedMs() });
+      const elapsedMs = timer.elapsedMs();
+      const statusForScore = state === 1 ? "won" : "lost";
+      const score = computeScore(size, difficulty, elapsedMs, statusForScore);
+      gameOver.show({ state, elapsedMs, score, size });
       // Game over; the timer will never run again on this page, so drop its
       // visibilitychange listener rather than leaving it dangling until a
       // full page navigation cleans it up.
@@ -332,7 +338,9 @@ async function main(): Promise<void> {
       // (but pointless) restored board sitting behind it. Same reasoning as
       // onEnd above: nothing in progress to offer "Start over" on.
       startOverBtn.hidden = true;
-      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs });
+      const statusForScore = saved.gameState === 1 ? "won" : "lost";
+      const score = computeScore(size, difficulty, saved.elapsedMs, statusForScore);
+      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs, score, size });
     } else {
       // Persist on every interaction with a cell (marking, eliminating, or
       // guessing) — cheap, bounded by how often the player actually clicks,
