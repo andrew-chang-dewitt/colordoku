@@ -1,0 +1,127 @@
+/* Same bottom-sheet <dialog> treatment as historyview.module.css's .drawer */
+
+.drawer {
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow: auto;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border-radius: 0.75em 0.75em 0 0;
+  box-shadow: 0 -0.5em 1.5em rgb(0 0 0 / 0.3);
+
+  translate: 0 100%;
+  transition:
+    translate 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open] {
+  translate: 0 0;
+}
+
+@starting-style {
+  .drawer[open] {
+    translate: 0 100%;
+  }
+}
+
+.drawer::backdrop {
+  background-color: rgb(0 0 0 / 0);
+  transition:
+    background-color 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open]::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+@starting-style {
+  .drawer[open]::backdrop {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer::backdrop {
+    transition-duration: 1ms;
+  }
+}
+
+/* Covers the dialog's whole box, same "click landed on the dialog itself ==
+ * backdrop" trick as historyview — padding lives here instead of on
+ * .drawer for that reason. */
+.panel {
+  padding: 1.5em;
+  margin: 0 auto;
+  max-width: 32em;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1em;
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.3em;
+}
+
+.close {
+  flex-shrink: 0;
+}
+
+.summary {
+  margin-bottom: 1.25em;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: 0.85em;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5em;
+}
+
+.weekDateRange {
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+.weekStats {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.emptyState {
+  margin: 1.5em 0;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.emptyState[hidden] {
+  display: none;
+}

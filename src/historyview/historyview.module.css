@@ -85,6 +85,12 @@
   flex-shrink: 0;
 }
 
+.summary {
+  margin-bottom: 1.25em;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -194,6 +200,11 @@
   font-size: 0.85em;
   font-weight: bold;
   margin-left: auto;
+}
+
+.entryWeekTotal {
+  font-size: 0.85em;
+  font-weight: 500;
 }
 
 .entryMeta {

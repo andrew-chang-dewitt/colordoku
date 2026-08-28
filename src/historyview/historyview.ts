@@ -23,6 +23,12 @@ import { getHistory } from "../persistence/history";
 import type { Difficulty } from "../options/options";
 import { formatElapsed } from "../timer/timer";
 import { buildShareUrl, newShareButton } from "../share/share";
+import {
+  currentWeekBounds,
+  weeklyScoreTotal,
+  allTimeScoreTotal,
+  cumulativeScoreThroughEntry,
+} from "../persistence/weeklyScore";
 
 export type StatusFilter = HistoryStatus | "all";
 export type SizeFilter = number | "all";
@@ -180,6 +186,10 @@ export function newHistoryView({
   closeButton.addEventListener("click", () => html.close());
   header.append(closeButton);
 
+  const summary = document.createElement("div");
+  summary.className = classes.summary;
+  panel.append(summary);
+
   const controls = document.createElement("div");
   controls.className = classes.controls;
   panel.append(controls);
@@ -232,7 +242,7 @@ export function newHistoryView({
   emptyState.className = classes.emptyState;
   panel.append(emptyState);
 
-  function renderEntry(entry: HistoryEntry): HTMLLIElement {
+  function renderEntry(entry: HistoryEntry, allEntries: HistoryEntry[]): HTMLLIElement {
     const item = document.createElement("li");
     item.className = classes.entry;
 
@@ -267,6 +277,11 @@ export function newHistoryView({
     score.className = classes.entryScore;
     score.textContent = entry.score === null ? "Score: —" : `Score: ${entry.score}`;
     main.append(score);
+
+    const weekTotal = document.createElement("span");
+    weekTotal.className = classes.entryWeekTotal;
+    weekTotal.textContent = `Week total: ${cumulativeScoreThroughEntry(allEntries, entry)}`;
+    main.append(weekTotal);
 
     item.append(main);
 
@@ -329,11 +344,17 @@ export function newHistoryView({
     const all = getEntries();
     refreshSizeOptions(all);
 
+    // Update summary line with unfiltered totals
+    const weekBounds = currentWeekBounds();
+    const weeklyTotal = weeklyScoreTotal(all, weekBounds);
+    const allTimeTotal = allTimeScoreTotal(all);
+    summary.textContent = `This week: ${weeklyTotal} · All-time: ${allTimeTotal}`;
+
     const filtered = filterEntries(all, { status: statusFilter, size: sizeFilter });
     const sorted = sortEntries(filtered, sortKey);
 
     list.replaceChildren();
-    for (const entry of sorted) list.append(renderEntry(entry));
+    for (const entry of sorted) list.append(renderEntry(entry, all));
 
     const noneAtAll = all.length === 0;
     list.hidden = sorted.length === 0;

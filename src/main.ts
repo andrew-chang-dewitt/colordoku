@@ -8,11 +8,13 @@ import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
 import { loadGame, saveGame } from "./persistence/persistence";
-import { recordAttempt, statusFromGameState } from "./persistence/history";
+import { recordAttempt, statusFromGameState, getHistory } from "./persistence/history";
 import { computeScore } from "./persistence/score";
+import { weeklyScoreTotal, currentWeekBounds } from "./persistence/weeklyScore";
 import { buildShareUrl, newShareButton } from "./share/share";
 import { newStartOverButton } from "./startover/startover";
 import { newHistoryView } from "./historyview/historyview";
+import { newScoreView } from "./scoreview/scoreview";
 import { newUserMenu } from "./usermenu/usermenu";
 
 const app = document.querySelector("#app")!;
@@ -178,7 +180,13 @@ async function main(): Promise<void> {
   const historyView = newHistoryView({ onPlayAgain: startOver });
   app.append(historyView.html);
 
-  const userMenu = newUserMenu({ onOpenHistory: () => historyView.open() });
+  const scoreView = newScoreView();
+  app.append(scoreView.html);
+
+  const userMenu = newUserMenu({
+    onOpenHistory: () => historyView.open(),
+    onOpenScoreView: () => scoreView.open(),
+  });
   aboveBoardRowRight.append(userMenu.html);
 
   // placeholder for board while generating (spinner & cancel button)
@@ -318,7 +326,6 @@ async function main(): Promise<void> {
       const elapsedMs = timer.elapsedMs();
       const statusForScore = state === 1 ? "won" : "lost";
       const score = computeScore(size, difficulty, elapsedMs, statusForScore);
-      gameOver.show({ state, elapsedMs, score, size });
       // Game over; the timer will never run again on this page, so drop its
       // visibilitychange listener rather than leaving it dangling until a
       // full page navigation cleans it up.
@@ -329,7 +336,13 @@ async function main(): Promise<void> {
       // Persist the final state so a reload re-shows the same game-over
       // modal instead of silently starting a new board — the save is only
       // cleared by an explicit "new game" action (see options.ts's goToSize).
+      // Must run BEFORE computing weeklyScore below: persist() is what
+      // writes this game's own score into history via recordAttempt(), so
+      // weeklyScoreTotal(getHistory(), ...) only includes this game's score
+      // if history has already been written by the time it runs.
       persist();
+      const weeklyScore = weeklyScoreTotal(getHistory(), currentWeekBounds());
+      gameOver.show({ state, elapsedMs, score, size, weeklyScore });
     });
 
     if (saved !== null && saved.gameState !== 0) {
@@ -340,7 +353,10 @@ async function main(): Promise<void> {
       startOverBtn.hidden = true;
       const statusForScore = saved.gameState === 1 ? "won" : "lost";
       const score = computeScore(size, difficulty, saved.elapsedMs, statusForScore);
-      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs, score, size });
+      // No fresh persist() needed here — this game already ended and was
+      // recorded in a prior session, so its score is already in history.
+      const weeklyScore = weeklyScoreTotal(getHistory(), currentWeekBounds());
+      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs, score, size, weeklyScore });
     } else {
       // Persist on every interaction with a cell (marking, eliminating, or
       // guessing) — cheap, bounded by how often the player actually clicks,

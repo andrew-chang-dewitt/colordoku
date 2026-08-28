@@ -57,6 +57,11 @@ export interface UserMenuConfig {
    * exists.
    */
   onOpenHistory: () => void;
+  /**
+   * Opens the score over time view (src/scoreview/scoreview.ts's
+   * `ScoreView.open()`) — displays cumulative score tracking by week.
+   */
+  onOpenScoreView: () => void;
 }
 
 export interface UserMenu {
@@ -75,7 +80,7 @@ export interface UserMenu {
   dispose: () => void;
 }
 
-export function newUserMenu({ onOpenHistory }: UserMenuConfig): UserMenu {
+export function newUserMenu({ onOpenHistory, onOpenScoreView }: UserMenuConfig): UserMenu {
   let open = false;
 
   const wrapper = document.createElement("div");
@@ -124,6 +129,17 @@ export function newUserMenu({ onOpenHistory }: UserMenuConfig): UserMenu {
   }
 
   const historyItem = menuItem("Game history");
+  historyItem.addEventListener("click", () => {
+    setOpen(false);
+    onOpenHistory();
+  });
+
+  const scoreItem = menuItem("Score over time");
+  scoreItem.addEventListener("click", () => {
+    setOpen(false);
+    onOpenScoreView();
+  });
+
   // Neither has anything built yet to link to — real, fully-shaped menu
   // items (so the menu isn't visually missing pieces) rather than wired to
   // placeholder behavior. "Leaderboard (if opted in)" per the README TODO:
@@ -148,11 +164,6 @@ export function newUserMenu({ onOpenHistory }: UserMenuConfig): UserMenu {
   }
 
   button.addEventListener("click", () => setOpen(!open));
-
-  historyItem.addEventListener("click", () => {
-    setOpen(false);
-    onOpenHistory();
-  });
 
   function onDocumentClick(event: MouseEvent): void {
     if (!open) return;

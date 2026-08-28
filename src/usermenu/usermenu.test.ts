@@ -3,8 +3,11 @@ import { newUserMenu } from "./usermenu";
 
 let disposers: Array<() => void> = [];
 
-function mount(onOpenHistory: () => void = vi.fn()) {
-  const menu = newUserMenu({ onOpenHistory });
+function mount(
+  onOpenHistory: () => void = vi.fn(),
+  onOpenScoreView: () => void = vi.fn(),
+) {
+  const menu = newUserMenu({ onOpenHistory, onOpenScoreView });
   disposers.push(menu.dispose);
   document.body.append(menu.html);
   const button = menu.html.querySelector<HTMLButtonElement>("button#user-menu")!;
@@ -57,16 +60,17 @@ describe("the trigger button", () => {
 });
 
 describe("menu contents", () => {
-  it("renders exactly the three items the README TODO lists, in order", () => {
+  it("renders the menu items in order: Game history, Score over time, User preferences, Leaderboard", () => {
     const { panel } = mount();
     const items = Array.from(panel.querySelectorAll("button")).map((b) => b.textContent);
-    expect(items).toEqual(["Game history", "User preferences", "Leaderboard"]);
+    expect(items).toEqual(["Game history", "Score over time", "User preferences", "Leaderboard"]);
   });
 
-  it("only 'Game history' is enabled — the other two are real but inert, not faked", () => {
+  it("'Game history' and 'Score over time' are enabled; the other two are real but inert, not faked", () => {
     const { panel } = mount();
-    const [history, preferences, leaderboard] = Array.from(panel.querySelectorAll("button"));
+    const [history, scoreView, preferences, leaderboard] = Array.from(panel.querySelectorAll("button"));
     expect(history.disabled).toBe(false);
+    expect(scoreView.disabled).toBe(false);
     expect(preferences.disabled).toBe(true);
     expect(leaderboard.disabled).toBe(true);
   });
@@ -85,7 +89,7 @@ describe("menu contents", () => {
   });
 });
 
-describe("the integration point: onOpenHistory", () => {
+describe("the integration points: onOpenHistory and onOpenScoreView", () => {
   it("clicking 'Game history' calls onOpenHistory and closes the menu", () => {
     const onOpenHistory = vi.fn();
     const { button, panel } = mount(onOpenHistory);
@@ -97,6 +101,20 @@ describe("the integration point: onOpenHistory", () => {
     history.click();
 
     expect(onOpenHistory).toHaveBeenCalledTimes(1);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it("clicking 'Score over time' calls onOpenScoreView and closes the menu", () => {
+    const onOpenScoreView = vi.fn();
+    const { button, panel } = mount(vi.fn(), onOpenScoreView);
+    button.click();
+
+    const scoreView = Array.from(panel.querySelectorAll("button")).find(
+      (b) => b.textContent === "Score over time",
+    )!;
+    scoreView.click();
+
+    expect(onOpenScoreView).toHaveBeenCalledTimes(1);
     expect(panel.hidden).toBe(true);
   });
 });

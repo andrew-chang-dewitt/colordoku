@@ -23,7 +23,7 @@ function mount() {
 describe("newGameOver", () => {
   it("shows distinct messaging for a win, including the elapsed time", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
     expect(gameOver.html.open).toBe(true);
     expect(gameOver.html.textContent).toContain("won");
     expect(gameOver.html.textContent).toContain("1:05");
@@ -31,14 +31,14 @@ describe("newGameOver", () => {
 
   it("shows distinct messaging for a loss", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
     expect(gameOver.html.open).toBe(true);
     expect(gameOver.html.textContent).not.toContain("won");
   });
 
   it("ignores an attempt to dismiss it (Escape)", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 1, elapsedMs: 0, score: 1000, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 0, score: 1000, size: 4, weeklyScore: 1000 });
 
     const cancelled = new Event("cancel", { cancelable: true });
     gameOver.html.dispatchEvent(cancelled);
@@ -48,7 +48,7 @@ describe("newGameOver", () => {
 
   it("the 'new game, same size' action closes the modal and calls onNewGame", () => {
     const { gameOver, onNewGame } = mount();
-    gameOver.show({ state: 1, elapsedMs: 0, score: 1000, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 0, score: 1000, size: 4, weeklyScore: 1000 });
 
     const button = [...gameOver.html.querySelectorAll("button")].find((b) =>
       b.textContent?.includes("New game"),
@@ -61,7 +61,7 @@ describe("newGameOver", () => {
 
   it("the 'change size' action closes the modal and calls onChangeOptions", () => {
     const { gameOver, onChangeOptions } = mount();
-    gameOver.show({ state: 2, elapsedMs: 0, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 0, score: 0, size: 4, weeklyScore: 0 });
 
     const button = [...gameOver.html.querySelectorAll("button")].find((b) =>
       b.textContent?.includes("Change size"),
@@ -76,11 +76,11 @@ describe("newGameOver", () => {
     const { gameOver } = mount();
 
     // Win: should show score
-    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
     expect(gameOver.html.textContent).toContain("Score: 1234");
 
     // Loss: should not show score
-    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
     const scoreElements = gameOver.html.querySelectorAll("p");
     const scoreLine = [...scoreElements].find((p) =>
       p.textContent?.includes("Score:"),
@@ -88,24 +88,40 @@ describe("newGameOver", () => {
     expect(scoreLine?.hidden).toBe(true);
   });
 
+  it("shows weekly score line on a win with the right number, but not on a loss", () => {
+    const { gameOver } = mount();
+
+    // Win: should show weekly score
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
+    expect(gameOver.html.textContent).toContain("This week: 5000");
+
+    // Loss: should not show weekly score
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
+    const weeklyScoreElements = gameOver.html.querySelectorAll("p");
+    const weeklyScoreLine = [...weeklyScoreElements].find((p) =>
+      p.textContent?.includes("This week:"),
+    );
+    expect(weeklyScoreLine?.hidden).toBe(true);
+  });
+
   it("shows share button on win but not on loss", () => {
     const { gameOver } = mount();
 
     // Win: share button visible
-    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
     const shareButton = [...gameOver.html.querySelectorAll("button")].find(
       (b) => b.textContent?.includes("Share"),
     );
     expect(shareButton?.hidden).toBe(false);
 
     // Loss: share button hidden
-    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
     expect(shareButton?.hidden).toBe(true);
   });
 
   it("the 'try again' action on a loss closes the modal and calls onTryAgain once", () => {
     const { gameOver, onTryAgain } = mount();
-    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
 
     const button = [...gameOver.html.querySelectorAll("button")].find((b) =>
       b.textContent?.includes("Try again"),
@@ -118,7 +134,7 @@ describe("newGameOver", () => {
 
   it("does not show 'try again' on a win", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
 
     const tryAgainButton = [...gameOver.html.querySelectorAll("button")].find(
       (b) => b.textContent?.includes("Try again"),
@@ -128,7 +144,7 @@ describe("newGameOver", () => {
 
   it("confetti container has children after show() on a win", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4 });
+    gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
 
     expect(gameOver.confettiHtml).toBeTruthy();
     expect(gameOver.confettiHtml.children.length).toBeGreaterThan(0);
@@ -136,7 +152,7 @@ describe("newGameOver", () => {
 
   it("confetti container is empty after show() on a loss", () => {
     const { gameOver } = mount();
-    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4 });
+    gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
 
     expect(gameOver.confettiHtml.children.length).toBe(0);
   });

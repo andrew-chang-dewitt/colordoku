@@ -299,4 +299,40 @@ describe("newHistoryView", () => {
     view.html.dispatchEvent(new Event("click", { bubbles: true }));
     expect(view.html.open).toBe(false);
   });
+
+  it("shows the weekly and all-time score totals in a summary line", () => {
+    const mondayStart = new Date(2026, 7, 24, 0, 0, 0).getTime();
+    const entries = [
+      entry({ startedAt: mondayStart + 1000, score: 100, status: "won" }),
+      entry({ startedAt: mondayStart + 2000, score: 200, status: "won" }),
+      entry({ startedAt: mondayStart - 10000, score: 50, status: "won" }), // previous week
+    ];
+    const view = newHistoryView({ onPlayAgain: vi.fn(), getEntries: () => entries });
+    document.body.append(view.html);
+    view.open();
+
+    const summaryDiv = Array.from(view.html.querySelectorAll("div")).find((d) =>
+      d.textContent?.includes("This week:"),
+    );
+    expect(summaryDiv).toBeDefined();
+    expect(summaryDiv?.textContent).toContain("This week: 300");
+    expect(summaryDiv?.textContent).toContain("All-time: 350");
+  });
+
+  it("shows the running total for each entry in the same week", () => {
+    const mondayStart = new Date(2026, 7, 24, 0, 0, 0).getTime();
+    const entries = [
+      entry({ id: "1", startedAt: mondayStart + 1000, score: 100, status: "won" }),
+      entry({ id: "2", startedAt: mondayStart + 2000, score: 200, status: "won" }),
+      entry({ id: "3", startedAt: mondayStart + 3000, score: 150, status: "won" }),
+    ];
+    const view = newHistoryView({ onPlayAgain: vi.fn(), getEntries: () => entries });
+    document.body.append(view.html);
+    view.open();
+
+    const rows = view.html.querySelectorAll("ul > li");
+    expect(rows[0].textContent).toContain("Week total: 450"); // newest entry (entry 3)
+    expect(rows[1].textContent).toContain("Week total: 300"); // entry 2
+    expect(rows[2].textContent).toContain("Week total: 100"); // entry 1 (oldest)
+  });
 });

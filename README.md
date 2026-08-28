@@ -221,8 +221,8 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
         history rather than stored separately), surfaced in the history
         view's summary line & a per-entry running total, plus a new "Score
         over time" drawer (`scoreview.ts`) off the profile menu; today/month/
-        year granularity still open. Win-modal weekly-score display still
-        pending (blocked on an unrelated in-progress edit to the same file).
+        year granularity still open. Win-modal weekly-score display is now
+        done too, shown alongside per-game score.
     - [ ] score-over-time view: show the trend as a line graph, not just a
           list (plan: `docs/plans/scoreview-line-graph.md`)
 - [x] #user-data user profile menu button

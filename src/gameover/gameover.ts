@@ -7,6 +7,8 @@ export interface GameOverResult {
   elapsedMs: number;
   score: number;
   size: number;
+  /** Cumulative score for the current week, including this game's own score. */
+  weeklyScore: number;
 }
 
 export interface GameOver {
@@ -71,6 +73,10 @@ export function newGameOver({
   const score = document.createElement("p");
   score.className = classes.score;
   card.append(score);
+
+  const weeklyScore = document.createElement("p");
+  weeklyScore.className = classes.weeklyScore;
+  card.append(weeklyScore);
 
   const actions = document.createElement("div");
   actions.className = classes.actions;
@@ -331,7 +337,7 @@ export function newGameOver({
     html,
     confettiHtml,
 
-    show({ state, elapsedMs, score: scoreValue, size }) {
+    show({ state, elapsedMs, score: scoreValue, size, weeklyScore: weeklyScoreValue }) {
       const won = state === 1;
       html.classList.toggle(classes.won, won);
       html.classList.toggle(classes.lost, !won);
@@ -349,6 +355,12 @@ export function newGameOver({
       score.hidden = !won;
       if (won) {
         score.textContent = `Score: ${scoreValue}`;
+      }
+
+      // Weekly cumulative score line: shown only on win, alongside the per-game score
+      weeklyScore.hidden = !won;
+      if (won) {
+        weeklyScore.textContent = `This week: ${weeklyScoreValue}`;
       }
 
       // Open dialog BEFORE starting animations on confetti, so they start on rendered elements
