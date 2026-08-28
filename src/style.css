@@ -364,6 +364,10 @@ button.group-15 {
   opacity: 0.75;
 }
 
+html {
+  overflow-y: hidden;
+}
+
 #board {
   /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
 
@@ -457,6 +461,8 @@ button.group-15 {
   overflow: hidden;
   width: fit-content;
   padding: var(--board-pad);
+
+  margin: 0 auto;
 }
 
 /* Guess pips plus whatever else main.ts appends alongside them (currently the
