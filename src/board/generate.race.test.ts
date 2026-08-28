@@ -81,7 +81,7 @@ describe("generateCells racing", () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
     const game = newGame(SLOW_SIZE, 2);
 
-    const promise = generateCells(game, SLOW_SIZE);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
 
     // hardwareConcurrency=4, under MAX_RACERS=8, so exactly 4 racers spawn.
     expect(FakeWorker.instances).toHaveLength(4);
@@ -103,7 +103,7 @@ describe("generateCells racing", () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
     const game = newGame(SLOW_SIZE - 1, 2);
 
-    const promise = generateCells(game, SLOW_SIZE - 1);
+    const promise = generateCells(game, SLOW_SIZE - 1, "medium");
     expect(FakeWorker.instances).toHaveLength(1);
 
     FakeWorker.instances[0].respondOk({ seed: 777 });
@@ -114,7 +114,7 @@ describe("generateCells racing", () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
     const game = newGame(SLOW_SIZE, 2);
 
-    const promise = generateCells(game, SLOW_SIZE, 999);
+    const promise = generateCells(game, SLOW_SIZE, "medium", 999);
     expect(FakeWorker.instances).toHaveLength(1);
     expect(FakeWorker.instances[0].posted[0].seed).toBe(999);
 
@@ -126,7 +126,7 @@ describe("generateCells racing", () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
     const game = newGame(SLOW_SIZE, 2);
 
-    const promise = generateCells(game, SLOW_SIZE);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
     expect(FakeWorker.instances).toHaveLength(4);
 
     // Swallow the eventual rejection so it isn't reported as unhandled while
@@ -152,7 +152,7 @@ describe("generateCells racing", () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
     const game = newGame(SLOW_SIZE, 2);
 
-    const promise = generateCells(game, SLOW_SIZE);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
     expect(FakeWorker.instances).toHaveLength(8); // MAX_RACERS
 
     FakeWorker.instances[0].respondOk({ seed: 1 });

@@ -201,13 +201,14 @@ async function main(): Promise<void> {
     // A resumable save pins the seed so generation reproduces the exact same
     // region/queen layout; player progress (marks, guesses, elapsed time) is
     // then re-applied on top of that freshly generated board below.
-    const board = await newBoard(size, saved?.seed ?? seed, controller.signal);
-    // Same precedence as size/seed above: a resumed game's own recorded
+    // Same precedence as size/seed below: a resumed game's own recorded
     // difficulty wins over whatever the current URL says (a share link or
     // bookmark might carry no `?difficulty=`, or a different one, from a
     // later visit) — this is the one authoritative difficulty value for the
-    // rest of this session, used for both persistence and scoring below.
+    // rest of this session, used for board generation, persistence, and
+    // scoring.
     const difficulty: Difficulty = saved?.difficulty ?? urlDifficulty;
+    const board = await newBoard(size, difficulty, saved?.seed ?? seed, controller.signal);
     aboveBoardRowCenter.append(board.htmlHud);
 
     mainHtml.append(board.htmlBoard);

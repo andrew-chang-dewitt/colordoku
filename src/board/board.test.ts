@@ -50,17 +50,36 @@ function plainClick(cell: Cell): void {
 const states = (cells: Cell[]): number[] => cells.map((c) => c.state);
 
 describe("maxGuessesFor", () => {
-  it("keeps the original 4x4 board at two guesses", () => {
-    expect(maxGuessesFor(4)).toBe(2);
+  it("medium: matches the plan's explicit anchors (12x12 -> 3, 6x6-or-smaller -> 1)", () => {
+    expect(maxGuessesFor(12, "medium")).toBe(3);
+    expect(maxGuessesFor(6, "medium")).toBe(1);
+    expect(maxGuessesFor(4, "medium")).toBe(1);
   });
 
-  it("scales with board size", () => {
-    expect(maxGuessesFor(8)).toBe(4);
-    expect(maxGuessesFor(12)).toBe(6);
+  it("medium: grows sub-linearly with size, unlike the old ceil(size/2)", () => {
+    expect(maxGuessesFor(16, "medium")).toBeLessThan(8);
   });
 
-  it("always leaves at least one guess", () => {
-    expect(maxGuessesFor(1)).toBe(1);
+  it("easy: never exceeds 2 guesses at 6x6", () => {
+    expect(maxGuessesFor(6, "easy")).toBeLessThanOrEqual(2);
+  });
+
+  it("easy allows more guesses than medium at the same size", () => {
+    for (const size of [8, 12, 16]) {
+      expect(maxGuessesFor(size, "easy")).toBeGreaterThanOrEqual(maxGuessesFor(size, "medium"));
+    }
+  });
+
+  it("hard allows fewer or equal guesses than medium at the same size", () => {
+    for (const size of [8, 12, 16]) {
+      expect(maxGuessesFor(size, "hard")).toBeLessThanOrEqual(maxGuessesFor(size, "medium"));
+    }
+  });
+
+  it("always leaves at least one guess, at every tier", () => {
+    expect(maxGuessesFor(4, "easy")).toBeGreaterThanOrEqual(1);
+    expect(maxGuessesFor(4, "medium")).toBeGreaterThanOrEqual(1);
+    expect(maxGuessesFor(4, "hard")).toBeGreaterThanOrEqual(1);
   });
 });
 

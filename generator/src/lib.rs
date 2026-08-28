@@ -33,7 +33,7 @@ mod wasm;
 pub const MAX_N: usize = 32;
 
 pub use error::GenError;
-pub use generate::{GenOptions, GeneratedBoardCore, generate, generate_with};
+pub use generate::{Difficulty, GenOptions, GeneratedBoardCore, generate, generate_with};
 pub use grid::RegionGrid;
 pub use render::render;
 pub use rng::Rng;

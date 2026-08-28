@@ -1,6 +1,7 @@
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
 import type { Game } from "../game/game";
+import type { Difficulty } from "../options/options";
 import type { GenerateRequest, GenerateResponse } from "./generate.worker";
 
 /**
@@ -220,6 +221,7 @@ export interface GeneratedCells {
 export async function generateCells(
   game: Game,
   size: number,
+  difficulty: Difficulty,
   seed?: number,
   signal?: AbortSignal,
 ): Promise<GeneratedCells> {
@@ -272,7 +274,7 @@ export async function generateCells(
             // otherwise: a sibling racer may still succeed, so keep waiting
           },
         });
-        worker.postMessage({ id, size, seed: seeds[i] } satisfies GenerateRequest);
+        worker.postMessage({ id, size, seed: seeds[i], difficulty } satisfies GenerateRequest);
       });
     });
 

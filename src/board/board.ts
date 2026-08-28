@@ -2,6 +2,7 @@ import type { Cell } from "../cell/cell";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
+import type { Difficulty } from "../options/options";
 
 export interface Board {
   state: Cell[][];
@@ -12,12 +13,27 @@ export interface Board {
   htmlHud: HTMLDivElement;
 }
 
+/** Scales a size-only baseline guess count per difficulty tier; see docs/plans/board-generation-difficulty.md. */
+const GUESS_MULTIPLIER: Record<Difficulty, number> = {
+  easy: 1.5,
+  medium: 1,
+  hard: 0.75,
+};
+
 /**
- * 4 -> 2, 8 -> 4, 12 -> 6. A placeholder: the README lists a real difficulty
- * modifier as its own TODO.
+ * Guess budget for a board of the given size and difficulty (#board-generation,
+ * see docs/plans/board-generation-difficulty.md — this is Phase 1, the
+ * guess-count half; board generation itself isn't difficulty-aware yet).
+ *
+ * The baseline (medium) grows sub-linearly with size — 3/8 guess per size
+ * unit past a floor of 4 — rather than the old ceil(size/2), which was too
+ * lenient at larger sizes (a 12x12 got 6 guesses). Chosen to land on the
+ * plan's explicit anchors: medium 12x12 -> 3, medium 6x6-or-smaller -> 1.
+ * Easy and hard scale that baseline by 1.5x/0.75x, floored at 1 guess.
  */
-export function maxGuessesFor(size: number): number {
-  return Math.max(1, Math.ceil(size / 2));
+export function maxGuessesFor(size: number, difficulty: Difficulty): number {
+  const baseline = Math.max(1, Math.round(((size - 4) * 3) / 8));
+  return Math.max(1, Math.round(baseline * GUESS_MULTIPLIER[difficulty]));
 }
 
 /** A cell's position in the grid, as used by the shift+click / drag range-marking gestures. */
@@ -457,13 +473,15 @@ export function attachRangeGestures(
 
 export async function newBoard(
   size: number,
+  difficulty: Difficulty,
   seed?: number,
   signal?: AbortSignal,
 ): Promise<Board> {
-  const game = newGame(size, maxGuessesFor(size));
+  const game = newGame(size, maxGuessesFor(size, difficulty));
   const { cells, seed: resolvedSeed } = await generateCells(
     game,
     size,
+    difficulty,
     seed,
     signal,
   );

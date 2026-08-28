@@ -18,6 +18,19 @@ pub struct GeneratedBoardCore {
     pub regions: RegionGrid,
     /// How many restarts it took, for diagnostics.
     pub attempts: u32,
+    /// The board's hardness score — see `refine_unique`'s return value.
+    pub hardness: u64,
+}
+
+/// #board-generation difficulty tier (`docs/plans/board-generation-difficulty.md`,
+/// Phase 2) — how hard the *generated puzzle* is to logically solve, independent
+/// of how expensive it was to generate. See `hardness_band` below for the proxy
+/// used to measure that.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Difficulty {
+    Easy,
+    Medium,
+    Hard,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -38,6 +51,17 @@ pub struct GenOptions {
     /// cost does not predict success, so bounding it sheds the expensive tail
     /// without materially narrowing the search.
     pub max_nodes: u64,
+    /// Inclusive band, in solver nodes, that a *finished* board's hardness score
+    /// must land in to be accepted — see `refine_unique`'s return value for how
+    /// that score is computed. `None` accepts whatever `refine_unique` lands on,
+    /// unconstrained (this is Medium's behavior, and every size Easy/Hard haven't
+    /// been measured for yet — see `GenOptions::for_size`).
+    ///
+    /// A board landing outside the band isn't a bug or a failed generation the
+    /// way exhausting `refine_iters` is — it is a perfectly valid unique-solution
+    /// board that just doesn't match the requested tier's difficulty, so
+    /// `generate_with` restarts rather than erroring.
+    pub hardness_band: Option<(u64, u64)>,
 }
 
 impl GenOptions {
@@ -71,17 +95,72 @@ impl GenOptions {
     /// looser budgets (5B-20B) were also safe but gave smaller wins, and a
     /// tighter one (500M) showed an even bigger win in a single sweep but wasn't
     /// re-verified enough times to trust as the shipped value.
-    pub fn for_size(n: usize) -> Self {
+    ///
+    /// `hardness_band` (Easy/Hard only — Medium is always unconstrained) is set
+    /// per-size from direct measurement, same methodology as `max_nodes`:
+    /// `examples/hardness_survey.rs` samples 300 unconstrained (Medium) boards
+    /// per size and prints the resulting hardness-score distribution's
+    /// percentiles; Easy is set to that size's measured 25th percentile as an
+    /// upper bound, Hard to its 75th percentile as a lower bound.
+    ///
+    /// n=4 and n=5 are left unconstrained even though measured: the survey
+    /// found their whole Medium distribution already crammed into a narrow
+    /// range (n=4: p10=10..p90=15 out of 300 samples) — banding a range that
+    /// tight bought no real difficulty separation and was observed to exhaust
+    /// `restarts` outright on some seeds during testing. n=6..=12 measured
+    /// wide enough distributions to band safely; n>=13 is intentionally left
+    /// unconstrained pending the same measurement, same rationale as
+    /// `max_nodes` above: a wrong guess would make already-slow sizes slower
+    /// by rejecting boards and forcing extra restarts for no verified benefit.
+    pub fn for_size(n: usize, difficulty: Difficulty) -> Self {
         let max_nodes = match n {
             13 => 5_000_000_000,
             14 => 1_000_000_000,
             _ => u64::MAX,
         };
+        let hardness_band = match (difficulty, n) {
+            (Difficulty::Medium, _) => None,
+            (Difficulty::Easy, 6..=12) => Some((0, easy_hardness_ceiling(n))),
+            (Difficulty::Hard, 6..=12) => Some((hard_hardness_floor(n), u64::MAX)),
+            _ => None,
+        };
         Self {
             restarts: 200 + 50 * n as u32,
             refine_iters: 40 * n as u32,
             max_nodes,
+            hardness_band,
         }
+    }
+}
+
+/// Upper bound on an Easy board's hardness score, by size — see
+/// `GenOptions::for_size`'s doc comment for the measurement behind these
+/// (each size's measured 25th percentile, from a 300-sample survey).
+fn easy_hardness_ceiling(n: usize) -> u64 {
+    match n {
+        6 => 34,
+        7 => 67,
+        8 => 123,
+        9 => 276,
+        10 => 633,
+        11 => 1_251,
+        12 => 3_390,
+        _ => u64::MAX,
+    }
+}
+
+/// Lower bound on a Hard board's hardness score, by size — same measurement
+/// as `easy_hardness_ceiling` (each size's measured 75th percentile).
+fn hard_hardness_floor(n: usize) -> u64 {
+    match n {
+        6 => 69,
+        7 => 160,
+        8 => 330,
+        9 => 858,
+        10 => 2_650,
+        11 => 8_887,
+        12 => 24_059,
+        _ => 0,
     }
 }
 
@@ -184,13 +263,19 @@ pub fn grow_regions(n: usize, queens: &[u8], rng: &mut Rng) -> RegionGrid {
 /// forces two of the alternate's queens to share a region, killing it, while the
 /// intended solution — which only ever sits on region seeds — stays valid.
 ///
-/// Returns `false` when no legal move remains, so the caller restarts. Also
-/// returns `false` — abandoning the attempt early — once `max_nodes` total
+/// Returns `None` when no legal move remains, so the caller restarts. Also
+/// returns `None` — abandoning the attempt early — once `max_nodes` total
 /// solver nodes have been spent across the calls made so far, so a doomed
 /// attempt cannot run up an unbounded bill before the caller gives up on it.
 /// The budget is only ever checked *between* whole `solve` calls, never inside
 /// one, so it cannot truncate a search and corrupt the two-witness invariant
 /// `refine_unique` depends on.
+///
+/// On success, returns `Some(hardness)`: the node count `solver::solve_counted`
+/// spent on the call that confirmed uniqueness — a proxy for how hard the
+/// finished board is to solve logically (low = mostly forced moves, high =
+/// needs deep backtracking). Used by `generate_with` to target a difficulty
+/// tier's `hardness_band` (`docs/plans/board-generation-difficulty.md`, Phase 2).
 pub fn refine_unique(
     n: usize,
     queens: &[u8],
@@ -198,7 +283,7 @@ pub fn refine_unique(
     rng: &mut Rng,
     max_iters: u32,
     max_nodes: u64,
-) -> bool {
+) -> Option<u64> {
     let is_seed = |r: usize, c: usize| queens[r] as usize == c;
     let mut nodes_spent: u64 = 0;
 
@@ -207,10 +292,10 @@ pub fn refine_unique(
         let (count, nodes) = solver::solve_counted(n, grid.as_slice(), 2, &mut witnesses);
         nodes_spent += nodes;
         if count == 1 {
-            return true;
+            return Some(nodes);
         }
         if nodes_spent > max_nodes {
-            return false;
+            return None;
         }
         debug_assert_eq!(
             count, 2,
@@ -266,17 +351,19 @@ pub fn refine_unique(
         }
 
         if !moved {
-            return false;
+            return None;
         }
     }
 
-    solver::count_solutions(n, grid.as_slice(), 2) == 1
+    let mut witnesses = [[0u8; MAX_N]; 2];
+    let (count, nodes) = solver::solve_counted(n, grid.as_slice(), 2, &mut witnesses);
+    (count == 1).then_some(nodes)
 }
 
 /// Generate a board with exactly one solution. The same `seed` always gives the
 /// same board.
-pub fn generate(n: usize, seed: u32) -> Result<GeneratedBoardCore, GenError> {
-    generate_with(n, &mut Rng::from_seed(seed), GenOptions::for_size(n))
+pub fn generate(n: usize, seed: u32, difficulty: Difficulty) -> Result<GeneratedBoardCore, GenError> {
+    generate_with(n, &mut Rng::from_seed(seed), GenOptions::for_size(n, difficulty))
 }
 
 pub fn generate_with(
@@ -297,9 +384,19 @@ pub fn generate_with(
             return Err(GenError::UnsupportedSize(n));
         };
         let mut regions = grow_regions(n, &queens, rng);
-        if refine_unique(n, &queens, &mut regions, rng, opts.refine_iters, opts.max_nodes) {
-            return Ok(GeneratedBoardCore { n, queens, regions, attempts: attempt });
+        let Some(hardness) = refine_unique(n, &queens, &mut regions, rng, opts.refine_iters, opts.max_nodes)
+        else {
+            continue;
+        };
+        // A board outside the requested tier's hardness_band is a perfectly
+        // valid unique-solution board, just not one matching the difficulty
+        // asked for — restart rather than error (see hardness_band's doc).
+        if let Some((lo, hi)) = opts.hardness_band {
+            if hardness < lo || hardness > hi {
+                continue;
+            }
         }
+        return Ok(GeneratedBoardCore { n, queens, regions, attempts: attempt, hardness });
     }
 
     Err(GenError::Exhausted { n, restarts: opts.restarts })

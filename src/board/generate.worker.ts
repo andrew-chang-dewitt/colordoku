@@ -5,11 +5,13 @@
 // Here it only blocks this worker, leaving the page responsive and cancellable.
 
 import init, { generateBoard } from "../generator/pkg/colordoku_generator.js";
+import type { Difficulty } from "../options/options";
 
 export interface GenerateRequest {
   id: number;
   size: number;
   seed: number;
+  difficulty: Difficulty;
 }
 
 export type GenerateResponse =
@@ -53,13 +55,13 @@ function ensureReady(): Promise<unknown> {
 }
 
 ctx.addEventListener("message", (event) => {
-  const { id, size, seed } = event.data;
+  const { id, size, seed, difficulty } = event.data;
 
   void ensureReady().then(
     () => {
       let board;
       try {
-        board = generateBoard(size, seed);
+        board = generateBoard(size, seed, difficulty);
       } catch (err) {
         ctx.postMessage({
           id,

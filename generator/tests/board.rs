@@ -5,7 +5,7 @@
 //! property was wishful thinking.
 
 use colordoku_generator::{
-    GenError, GenOptions, GeneratedBoardCore, MAX_N, Rng, generate, generate_with, render, solver,
+    Difficulty, GenError, GenOptions, GeneratedBoardCore, MAX_N, Rng, generate, generate_with, render, solver,
 };
 
 /// The full set of invariants a finished board must satisfy.
@@ -58,7 +58,7 @@ fn assert_valid_puzzle(board: &GeneratedBoardCore) {
 
 #[test]
 fn trivial_board() {
-    let board = generate(1, 0).unwrap();
+    let board = generate(1, 0, Difficulty::Medium).unwrap();
     assert_eq!(board.queens, vec![0]);
     assert_eq!(board.regions.as_slice(), &[0]);
     assert_valid_puzzle(&board);
@@ -67,21 +67,21 @@ fn trivial_board() {
 #[test]
 fn impossible_sizes_are_rejected() {
     for n in [0usize, 2, 3] {
-        assert_eq!(generate(n, 1).unwrap_err(), GenError::UnsupportedSize(n));
+        assert_eq!(generate(n, 1, Difficulty::Medium).unwrap_err(), GenError::UnsupportedSize(n));
     }
 }
 
 #[test]
 fn oversized_boards_are_rejected() {
     assert_eq!(
-        generate(33, 1).unwrap_err(),
+        generate(33, 1, Difficulty::Medium).unwrap_err(),
         GenError::SizeTooLarge { n: 33, max: MAX_N }
     );
 }
 
 #[test]
 fn errors_read_like_sentences() {
-    let message = generate(3, 1).unwrap_err().to_string();
+    let message = generate(3, 1, Difficulty::Medium).unwrap_err().to_string();
     assert!(message.contains('3'), "{message}");
     assert!(message.contains("no valid board"), "{message}");
 }
@@ -92,7 +92,7 @@ fn exhaustion_is_reported() {
     // unique board at this size, so this exercises the give-up path.
     // No node budget here: this test is exercising restart exhaustion, not the
     // node budget, so max_nodes is left unlimited.
-    let opts = GenOptions { restarts: 1, refine_iters: 1, max_nodes: u64::MAX };
+    let opts = GenOptions { restarts: 1, refine_iters: 1, max_nodes: u64::MAX, hardness_band: None };
     let mut failures = 0;
     for seed in 0..20u32 {
         let mut rng = Rng::from_seed(seed);
@@ -108,19 +108,43 @@ fn exhaustion_is_reported() {
 fn same_seed_reproduces_the_board() {
     for n in [4usize, 7, 9] {
         for seed in [0u32, 1, 999_999] {
-            let a = generate(n, seed).unwrap();
-            let b = generate(n, seed).unwrap();
-            assert_eq!(a.queens, b.queens, "n={n} seed={seed}");
-            assert_eq!(a.regions, b.regions, "n={n} seed={seed}");
-            assert_eq!(a.attempts, b.attempts, "n={n} seed={seed}");
+            for difficulty in [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard] {
+                let a = generate(n, seed, difficulty).unwrap();
+                let b = generate(n, seed, difficulty).unwrap();
+                assert_eq!(a.queens, b.queens, "n={n} seed={seed} difficulty={difficulty:?}");
+                assert_eq!(a.regions, b.regions, "n={n} seed={seed} difficulty={difficulty:?}");
+                assert_eq!(a.attempts, b.attempts, "n={n} seed={seed} difficulty={difficulty:?}");
+            }
         }
     }
 }
 
 #[test]
+fn hardness_orders_easy_below_medium_below_hard_on_average() {
+    // Soft/statistical assertion, matching the style of the existing perf
+    // tests: hardness_band only narrows the search to a tier, it doesn't
+    // pin an exact value, so this checks the tendency across many seeds
+    // rather than any single board.
+    let n = 8;
+    let mean_hardness = |difficulty: Difficulty| -> f64 {
+        let total: u64 = (1..=20u32)
+            .map(|seed| generate(n, seed, difficulty).unwrap().hardness)
+            .sum();
+        total as f64 / 20.0
+    };
+
+    let easy = mean_hardness(Difficulty::Easy);
+    let medium = mean_hardness(Difficulty::Medium);
+    let hard = mean_hardness(Difficulty::Hard);
+
+    assert!(easy < medium, "easy={easy} medium={medium}");
+    assert!(medium < hard, "medium={medium} hard={hard}");
+}
+
+#[test]
 fn different_seeds_give_different_boards() {
     let boards: Vec<_> = (1..=8u32)
-        .map(|seed| generate(8, seed).unwrap())
+        .map(|seed| generate(8, seed, Difficulty::Medium).unwrap())
         .map(|b| (b.queens, b.regions))
         .collect();
     let mut unique = boards.clone();
@@ -134,7 +158,7 @@ fn different_seeds_give_different_boards() {
 fn small_boards_are_valid_puzzles() {
     for n in [1usize, 4, 5, 6, 7, 8, 9] {
         for seed in [1u32, 2, 3] {
-            assert_valid_puzzle(&generate(n, seed).unwrap());
+            assert_valid_puzzle(&generate(n, seed, Difficulty::Medium).unwrap());
         }
     }
 }
@@ -147,7 +171,7 @@ fn small_boards_are_valid_puzzles() {
 fn large_boards_are_valid_puzzles() {
     for n in [10usize, 11, 12] {
         for seed in [1u32, 2, 3] {
-            assert_valid_puzzle(&generate(n, seed).unwrap());
+            assert_valid_puzzle(&generate(n, seed, Difficulty::Medium).unwrap());
         }
     }
 }
@@ -157,7 +181,7 @@ fn large_boards_are_valid_puzzles() {
 fn timings() {
     for n in 4..=16usize {
         let start = std::time::Instant::now();
-        match generate(n, 1) {
+        match generate(n, 1, Difficulty::Medium) {
             Ok(board) => println!(
                 "n={n:>2}  {:>8.1} ms  {} restart(s)",
                 start.elapsed().as_secs_f64() * 1000.0,
