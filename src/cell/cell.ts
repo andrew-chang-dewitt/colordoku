@@ -52,6 +52,17 @@ export interface Cell {
    * not be mistaken for a guess.
    */
   mark: (state: 0 | 1) => void;
+  /**
+   * Toggles the cell's mark state (0 ↔ 1), used by keyboard's X key.
+   * No-op if the cell is frozen. Same effect as a single click.
+   */
+  toggle: () => void;
+  /**
+   * Commits a guess on this cell (same effect as two rapid clicks).
+   * No-op if the cell is frozen. Includes the setTimeout(fn, 0) deferral
+   * for paint flushing (see commitGuess's comment).
+   */
+  commit: () => void;
 }
 
 export function newCell(
@@ -90,6 +101,16 @@ export function newCell(
       if (this.frozen) return;
       this.state = state;
       this.update();
+    },
+
+    toggle() {
+      if (this.frozen) return;
+      toggleMark();
+    },
+
+    commit() {
+      if (this.frozen) return;
+      commitGuess();
     },
   };
 
@@ -150,12 +171,12 @@ export function newCell(
     }
 
     if (sinceLast < DOUBLE_CLICK_MS) {
-      commitGuess();
+      cell.commit();
       lastClickAt = 0; // avoid chaining a stray 3rd click into another commit
       return;
     }
 
-    toggleMark();
+    cell.toggle();
     lastClickAt = now;
   }
 

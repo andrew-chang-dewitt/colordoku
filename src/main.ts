@@ -1,6 +1,6 @@
 import "./style.css";
 import type { Board } from "./board/board";
-import { newBoard } from "./board/board";
+import { newBoard, attachKeyboardNavigation } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
 import type { Difficulty } from "./options/options";
 import { newOptions, goToSize, startOver, isDifficulty, DEFAULT_DIFFICULTY } from "./options/options";
@@ -16,6 +16,7 @@ import { newStartOverButton } from "./startover/startover";
 import { newHistoryView } from "./historyview/historyview";
 import { newScoreView } from "./scoreview/scoreview";
 import { newUserMenu } from "./usermenu/usermenu";
+import { newHelpOverlay } from "./help/help";
 
 const app = document.querySelector("#app")!;
 
@@ -42,6 +43,9 @@ const options = newOptions({
   difficulty: urlDifficulty,
 });
 app.append(options.html);
+
+const helpOverlay = newHelpOverlay();
+app.append(helpOverlay.html);
 
 interface Status {
   html: HTMLDivElement;
@@ -293,6 +297,16 @@ async function main(): Promise<void> {
         buildShareUrl(size, board.seed, location.origin, location.pathname),
     });
     app.append(gameOver.html);
+
+    // Build the "is any dialog open" predicate used by keyboard navigation
+    const isAnyDialogOpen = () =>
+      options.html.open || gameOver.html.open || helpOverlay.html.open;
+
+    // Wire up keyboard navigation (called here, not inside newBoard, so we have
+    // access to the dialog state that was constructed in main.ts)
+    attachKeyboardNavigation(board.htmlBoard, board.state, board.game, isAnyDialogOpen, {
+      onHelp: () => helpOverlay.open(),
+    });
 
     // Checkpoints both SavedGame (single-slot "resume where I left off") and
     // this attempt's history entry (see persistence/history.ts) on the same

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
 import { newGame } from "../game/game";
-import { attachRangeGestures, cellsBetween, maxGuessesFor } from "./board";
+import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, directionFor, maxGuessesFor } from "./board";
 
 // attachRangeGestures's mouse-drag handling attaches its mousemove/mouseup
 // listeners to `window` (see its doc comment for why), which — unlike DOM
@@ -445,5 +445,48 @@ describe("attachRangeGestures: mouse-drag marking", () => {
     fireOn(cells[0][1], "mouseup", 2);
 
     expect(states(cells[0].slice(0, 2))).toEqual([0, 0]);
+  });
+});
+
+describe("attachKeyboardNavigation", () => {
+  describe("directionFor", () => {
+    it("recognizes arrow keys", () => {
+      expect(directionFor("ArrowUp")).toBe("up");
+      expect(directionFor("ArrowDown")).toBe("down");
+      expect(directionFor("ArrowLeft")).toBe("left");
+      expect(directionFor("ArrowRight")).toBe("right");
+    });
+
+    it("recognizes WASD case-insensitively", () => {
+      expect(directionFor("w")).toBe("up");
+      expect(directionFor("W")).toBe("up");
+      expect(directionFor("a")).toBe("left");
+      expect(directionFor("s")).toBe("down");
+      expect(directionFor("d")).toBe("right");
+    });
+
+    it("recognizes vim hjkl case-insensitively", () => {
+      expect(directionFor("h")).toBe("left");
+      expect(directionFor("j")).toBe("down");
+      expect(directionFor("k")).toBe("up");
+      expect(directionFor("l")).toBe("right");
+    });
+
+    it("returns null for unrecognized keys", () => {
+      expect(directionFor("x")).toBeNull();
+      expect(directionFor("Enter")).toBeNull();
+    });
+  });
+
+  describe("movement with clamping", () => {
+    it("starts cursor at top-left", () => {
+      const { cells, board } = buildGrid(4);
+      const dispose = attachKeyboardNavigation(board, cells, newGame(4, 4), () => false, {
+        onHelp: () => {},
+      });
+      disposers.push(dispose);
+
+      expect(cells[0][0].html.classList.contains("cursor")).toBe(true);
+    });
   });
 });

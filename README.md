@@ -168,13 +168,12 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       can influence board generation & max number of incorrect guesses allowed
       (plan: `docs/plans/board-generation-difficulty.md`) — guess-count half
       (Phase 1) done; generation-hardness half (Phase 2) still open
-- [ ] #keyboard-nav keyboard interaction for playing the board without a
+- [x] #keyboard-nav keyboard interaction for playing the board without a
       mouse/touch: arrow keys and/or WASD (plus vim h/j/k/l) to move a cursor
       around the grid, X to toggle an elimination mark, Q to mark a queen,
       shift+direction to extend a multi-cell selection for toggling (mirrors
       board.ts's existing shift+click range-toggle gesture), and ? to show a
-      keymap reference. Not exhaustive — other keys likely needed too. Plan
-      pending approval.
+      keymap reference (plan: `docs/plans/keyboard-navigation.md`)
 - [/] #gameover-ui UI indicating a game was won or lost
   (plan: `docs/plans/gameover-modal-ui.md`)
   - [x] improve win UI by making it a little more celebratory, maybe add things

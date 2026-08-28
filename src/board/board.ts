@@ -78,6 +78,44 @@ export function cellsBetween(from: Coord, to: Coord): Coord[] | null {
   return null;
 }
 
+export type Direction = "up" | "down" | "left" | "right";
+
+/**
+ * Resolves a keydown's key to a cursor direction, or null if it's not a movement key.
+ * Covers arrows, WASD, and vim h/j/k/l as three equally-valid input styles —
+ * checked case-insensitively for the letter keys so Caps Lock doesn't break it.
+ */
+export function directionFor(key: string): Direction | null {
+  switch (key) {
+    case "ArrowUp":
+    case "w":
+    case "W":
+    case "k":
+    case "K":
+      return "up";
+    case "ArrowDown":
+    case "s":
+    case "S":
+    case "j":
+    case "J":
+      return "down";
+    case "ArrowLeft":
+    case "a":
+    case "A":
+    case "h":
+    case "H":
+      return "left";
+    case "ArrowRight":
+    case "d":
+    case "D":
+    case "l":
+    case "L":
+      return "right";
+    default:
+      return null;
+  }
+}
+
 /**
  * Sets each cell's four --edge-{top,right,bottom,left}-{w,c} custom
  * properties (see cell.module.css's .cell box-shadow, which reads them) to
@@ -136,7 +174,7 @@ export function applyRegionBoundaries(cells: Cell[][]): void {
   });
 }
 
-interface Anchor {
+export interface Anchor {
   coord: Coord;
   /** The anchor cell's mark state, captured when it became the anchor — never 2 (queen-found): see attachRangeGestures. */
   value: 0 | 1;
@@ -483,6 +521,222 @@ export function attachRangeGestures(
   return () => {
     window.removeEventListener("mousemove", onMouseMove);
     window.removeEventListener("mouseup", onMouseUp);
+  };
+}
+
+/**
+ * Wires up keyboard navigation for the board: a cursor position that moves
+ * with arrow/WASD/vim keys, X to toggle marks, Q to commit guesses, Shift+direction
+ * for range selection, and ? to open the help overlay.
+ *
+ * The listener is attached to `document`, not the board element, and is gated by:
+ * - Whether any dialog is currently open (all keys suppressed until it closes)
+ * - Whether the game has ended (only ? remains live)
+ * - Whether a form field currently has focus (all keys suppressed)
+ *
+ * Returns a dispose function that removes the document-level listeners. Call this
+ * in tests to avoid leaking listeners across test runs, but newBoard() itself does
+ * not call it — a single page load only ever builds one board, and full navigation
+ * cleans everything up.
+ */
+export function attachKeyboardNavigation(
+  _board: HTMLDivElement,
+  cells: Cell[][],
+  game: Game,
+  isAnyDialogOpen: () => boolean,
+  { onHelp }: { onHelp: () => void },
+): () => void {
+  const size = cells.length;
+
+  // Cursor position, starting at top-left
+  let cursor: Coord = { row: 0, col: 0 };
+
+  // For shift+direction range selection
+  let keyboardSelectionAnchor: Anchor | null = null;
+  let lastAppliedRange: Coord[] = [];
+
+  function updateCursorVisual(): void {
+    // Clear the previous cursor cell's visual
+    cells.forEach((row) =>
+      row.forEach((cell) => {
+        cell.html.classList.remove("cursor");
+        cell.html.removeAttribute("aria-current");
+      }),
+    );
+
+    // Apply cursor visual to the current cell
+    const currentCell = cells[cursor.row][cursor.col];
+    currentCell.html.classList.add("cursor");
+    currentCell.html.setAttribute("aria-current", "true");
+  }
+
+  function moveCursor(direction: Direction): void {
+    let newRow = cursor.row;
+    let newCol = cursor.col;
+
+    switch (direction) {
+      case "up":
+        newRow = Math.max(0, newRow - 1);
+        break;
+      case "down":
+        newRow = Math.min(size - 1, newRow + 1);
+        break;
+      case "left":
+        newCol = Math.max(0, newCol - 1);
+        break;
+      case "right":
+        newCol = Math.min(size - 1, newCol + 1);
+        break;
+    }
+
+    cursor = { row: newRow, col: newCol };
+    updateCursorVisual();
+  }
+
+  function unmarkCells(coords: Coord[]): void {
+    for (const { row, col } of coords) {
+      const cell = cells[row][col];
+      if (!cell.frozen) {
+        cell.mark(keyboardSelectionAnchor!.value);
+      }
+    }
+  }
+
+  function markCells(coords: Coord[]): void {
+    const target =
+      keyboardSelectionAnchor!.value === 0 ? 1 : 0;
+    for (const { row, col } of coords) {
+      const cell = cells[row][col];
+      if (!cell.frozen) {
+        cell.mark(target);
+      }
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent): void {
+    // Gate 1: Any dialog open? All keys suppressed.
+    if (isAnyDialogOpen()) return;
+
+    // Gate 2: Game ended? Only ? (help) still works.
+    if (game.state !== 0 && event.key !== "?") return;
+
+    // Gate 3: A form field has focus? All keys suppressed.
+    if (
+      document.activeElement instanceof HTMLInputElement ||
+      document.activeElement instanceof HTMLTextAreaElement ||
+      document.activeElement instanceof HTMLSelectElement ||
+      (document.activeElement instanceof HTMLElement &&
+        document.activeElement.isContentEditable)
+    ) {
+      return;
+    }
+
+    // ? - help overlay
+    if (event.key === "?") {
+      event.preventDefault();
+      onHelp();
+      return;
+    }
+
+    // Movement keys
+    const direction = directionFor(event.key);
+    if (direction !== null) {
+      event.preventDefault();
+
+      // If not holding Shift, end any active selection
+      if (!event.shiftKey) {
+        keyboardSelectionAnchor = null;
+        lastAppliedRange = [];
+      }
+
+      const oldCursor = { ...cursor };
+      moveCursor(direction);
+
+      // If Shift is held, handle range selection
+      if (event.shiftKey) {
+        // First Shift+direction: set the anchor
+        if (keyboardSelectionAnchor === null) {
+          const anchorCell = cells[oldCursor.row][oldCursor.col];
+          if (!anchorCell.frozen) {
+            keyboardSelectionAnchor = {
+              coord: oldCursor,
+              value: anchorCell.state === 1 ? 1 : 0,
+            };
+          } else {
+            // Frozen anchor cell, gesture inert
+            return;
+          }
+        }
+
+        // Compute new range from anchor to current cursor
+        const newRange = cellsBetween(keyboardSelectionAnchor.coord, cursor);
+        if (newRange === null) return; // shouldn't happen with keyboard movement
+
+        // Diff old vs new range: unmark cells that left the range, mark new ones
+        const oldSet = new Set(
+          lastAppliedRange.map((c) => `${c.row},${c.col}`)
+        );
+        const newSet = new Set(newRange.map((c) => `${c.row},${c.col}`));
+
+        // Cells that were in the old range but aren't in the new one
+        const toUnmark: Coord[] = [];
+        for (const coord of lastAppliedRange) {
+          const key = `${coord.row},${coord.col}`;
+          if (!newSet.has(key)) {
+            toUnmark.push(coord);
+          }
+        }
+
+        // Cells that are in the new range but weren't in the old one
+        const toMark: Coord[] = [];
+        for (const coord of newRange) {
+          const key = `${coord.row},${coord.col}`;
+          if (!oldSet.has(key)) {
+            toMark.push(coord);
+          }
+        }
+
+        unmarkCells(toUnmark);
+        markCells(toMark);
+        lastAppliedRange = newRange;
+      }
+      return;
+    }
+
+    // X - toggle mark on cursor cell only
+    if (event.key === "x" || event.key === "X") {
+      event.preventDefault();
+      const cursorCell = cells[cursor.row][cursor.col];
+      cursorCell.toggle();
+      return;
+    }
+
+    // Q - commit guess on cursor cell only
+    if (event.key === "q" || event.key === "Q") {
+      event.preventDefault();
+      const cursorCell = cells[cursor.row][cursor.col];
+      cursorCell.commit();
+      return;
+    }
+  }
+
+  function handleKeyUp(event: KeyboardEvent): void {
+    // End shift+direction range selection when Shift is released
+    if (event.key === "Shift") {
+      keyboardSelectionAnchor = null;
+      lastAppliedRange = [];
+    }
+  }
+
+  document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("keyup", handleKeyUp);
+
+  // Apply initial cursor visual
+  updateCursorVisual();
+
+  return () => {
+    document.removeEventListener("keydown", handleKeyDown);
+    document.removeEventListener("keyup", handleKeyUp);
   };
 }
 

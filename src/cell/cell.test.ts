@@ -198,3 +198,90 @@ describe("cell click handling (debounced double-click)", () => {
     expect(incGuess).toHaveBeenCalledTimes(1); // not called again
   });
 });
+
+describe("toggle/commit (public wrappers used by X/Q keyboard handling)", () => {
+  describe("toggle()", () => {
+    it("flips state 0 ↔ 1 without touching found/error styling", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      expect(cell.state).toBe(0);
+
+      cell.toggle();
+      expect(cell.state).toBe(1);
+      expect(cell.html.className).not.toContain(classes.found);
+      expect(cell.html.className).not.toContain(classes.error);
+
+      cell.toggle();
+      expect(cell.state).toBe(0);
+      expect(cell.html.className).not.toContain(classes.found);
+      expect(cell.html.className).not.toContain(classes.error);
+    });
+
+    it("respects the frozen guard and is a no-op if frozen", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      cell.restore(2, true); // frozen
+      const stateBefore = cell.state;
+
+      cell.toggle();
+      expect(cell.state).toBe(stateBefore);
+    });
+  });
+
+  describe("commit()", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("commits found on a queen cell with the setTimeout(fn, 0) deferral intact", () => {
+      const game = newGame(4, 3);
+      const incFound = vi.spyOn(game, "incFound");
+      const cell = newCell(game, 0, true);
+
+      cell.commit();
+
+      expect(cell.state).toBe(2);
+      expect(cell.frozen).toBe(true);
+      expect(cell.html.className).toContain(classes.found);
+      expect(incFound).not.toHaveBeenCalled(); // not called yet due to setTimeout
+
+      vi.advanceTimersByTime(0);
+      expect(incFound).toHaveBeenCalledTimes(1);
+    });
+
+    it("commits error on a non-queen cell with the setTimeout(fn, 0) deferral intact", () => {
+      const game = newGame(4, 3);
+      const incGuess = vi.spyOn(game, "incGuess");
+      const cell = newCell(game, 0, false);
+
+      cell.commit();
+
+      expect(cell.state).toBe(1);
+      expect(cell.frozen).toBe(true);
+      expect(cell.html.className).toContain(classes.error);
+      expect(incGuess).not.toHaveBeenCalled(); // not called yet due to setTimeout
+
+      vi.advanceTimersByTime(0);
+      expect(incGuess).toHaveBeenCalledTimes(1);
+    });
+
+    it("respects the frozen guard and is a no-op if already frozen", () => {
+      const game = newGame(4, 3);
+      const incFound = vi.spyOn(game, "incFound");
+      const cell = newCell(game, 0, true);
+
+      cell.restore(2, true); // already frozen
+      const stateBefore = cell.state;
+
+      cell.commit();
+
+      expect(cell.state).toBe(stateBefore);
+      expect(cell.frozen).toBe(true);
+      vi.advanceTimersByTime(0);
+      expect(incFound).not.toHaveBeenCalled();
+    });
+  });
+});

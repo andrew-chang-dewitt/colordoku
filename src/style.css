@@ -143,6 +143,7 @@
   --color-mark: black;
   --color-queen: #b8860b;
   --color-error: #d1002f;
+  --color-cursor: #0066cc;
 
   --color-surface: #ffffff;
   --color-on-surface: #101010;
@@ -198,6 +199,7 @@
     --color-mark: white;
     --color-queen: #ffd60a;
     --color-error: #ff5c7a;
+    --color-cursor: #66b3ff;
 
     --color-surface: #1e1e1e;
     --color-on-surface: #f0f0f0;
