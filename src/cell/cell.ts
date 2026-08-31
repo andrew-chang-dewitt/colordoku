@@ -126,8 +126,13 @@ export function newCell(
 
     mark(state: 0 | 1) {
       if (this.frozen) return;
-      if (this.state !== state) this.onMark?.(this.state === 1 ? 1 : 0);
+      const previous = this.state === 1 ? 1 : 0;
+      const changed = this.state !== state;
       this.state = state;
+      // Assign state before firing onMark (matching toggle()'s ordering
+      // below) — a consumer reading `this.state` synchronously inside the
+      // hook must see the new value, not the stale one.
+      if (changed) this.onMark?.(previous);
       this.update();
     },
 

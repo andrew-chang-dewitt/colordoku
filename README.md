@@ -207,19 +207,18 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] fix placement (now inline w/ new game button in the same `#below-board`
         row)
 - [x] #help help button to view game rules & some strategy tips
-- [ ] #help skippable new user tutorial via a guided first game where modals
-      appear pointing to cells/regions/UI elements explaining the following things:
-  - [ ] first: how to access user profile & mentioning that's where to go to
+- [/] #help skippable new user tutorial via a guided first game where modals
+      appear pointing to cells/regions/UI elements explaining the following things
+      (plan: `docs/plans/help.md`)
+  - [x] first: how to access user profile & mentioning that's where to go to
         update user information/preferences
-  - [ ] then: walking through example 4x4 game from readme by pointing to
+  - [x] then: walking through example 4x4 game from readme by pointing to
         cells, then having the user make each move -- this won't be a "real" game &
         user won't be able to make any move other than the instructed one, so that
         each situation can be observed & explained to introduce basic concepts &
-        beginning strategy tips -- the user will, however, get an automatic
-        beginning score boost (make it bigger than it usually would be for a 4x4
-        easy game & not at all tied to the completion time, just a fixed amount for
-        all new users who complete the tutorial)
-  - [ ] finally: point out help button at start of first real game
+        beginning strategy tips
+  - [x] automatically give a fixed score boost for completion (not tied to time)
+  - [x] finally: point out help button & replay affordance at end of tutorial
 - [/] #user-score calculate some sort of "score" value based on board size, difficulty, &
   completion time
   - [x] determine how to score losses (are they negative? no score at all?

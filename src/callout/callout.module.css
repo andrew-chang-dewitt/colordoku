@@ -1,0 +1,92 @@
+.root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.frame {
+  position: fixed;
+  background: rgb(0 0 0 / 0.55);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.shield {
+  position: fixed;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.ring {
+  position: fixed;
+  pointer-events: none;
+  border: 2px solid currentColor;
+  box-shadow: 0 0 0 8px rgb(255 255 255 / 0.1), 0 0 12px rgb(0 0 0 / 0.2);
+  border-radius: 4px;
+}
+
+.bubble {
+  position: fixed;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  min-width: 280px;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.2);
+  pointer-events: auto;
+  z-index: 1001;
+  overflow-y: auto;
+  max-height: 80vh;
+}
+
+.progress {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-on-surface) 65%, transparent);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.title {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.body {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.body :global(strong) {
+  font-weight: 600;
+}
+
+.body :global(code) {
+  font-family: monospace;
+  background: color-mix(in srgb, var(--color-on-surface) 8%, transparent);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.actions :global(.btn) {
+  flex: 1;
+  min-height: 40px;
+  font-size: 14px;
+}

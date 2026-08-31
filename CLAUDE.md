@@ -116,6 +116,37 @@ Most modules are factory functions, each returning an object literal holding sta
   bracketed as transactions so each gesture creates one undo entry. Ctrl+Z / Cmd+Z is
   gated by the same rules as all other keyboard input (dialogs open, game ended, form
   field focused). See docs/plans/undo.md.
+- `src/persistence/tutorial.ts` — `TutorialRecord` plus `loadTutorial()` /
+  `hasSeenTutorial()` / `markTutorial{Started,Progress,Skipped,Completed}()`, backed by a
+  fixed localStorage key (`colordoku:tutorial`). Tracks whether a first-time player has
+  seen the tutorial (absence of the key = unseen), how far they got, and whether they
+  completed it. `completedAt` latches on first completion — a later replay that is
+  skipped never clears it, so a one-time completion bonus can key off that timestamp.
+- `src/callout/callout.ts` — `newCallout()` plus the pure geometry functions `frameRects`
+  and `placeBubble`: a generic spotlight/bubble overlay primitive for the tutorial.
+  Renders dimming frame rects around a target element (or the whole page if no target),
+  a transparent shield over the target (optional, for interactive act 2), a ring outline
+  on the target, and a bubble with text + action buttons. Not built on `<dialog>`
+  (which would cover the page via `::backdrop` and defeat the spotlight effect). `frameRects`
+  and `placeBubble` are DOM-free pure functions, making them unit-testable even in
+  happy-dom (which returns zeros for `getBoundingClientRect()`).
+- `src/tutorial/*` — the tutorial controller, practice board, and step script: a
+  skippable 14-step guided first game over a hand-built 4×4 board (README's worked
+  example, so prose and implementation stay in sync). Runs at the root URL (before a
+  size is even picked) as well as replayed from the help dialog — the guided game
+  needs no real board, just its own sandbox, so it never depended on one. Acts: 1
+  (welcome, unanchored — the tutorial used to have a second orientation step pointing
+  at the profile menu, but that chrome doesn't exist yet on the pre-board root page it
+  now primarily runs from, so it was dropped rather than showing a ring pointing at
+  nothing), 2 (guided 4×4 game with the only clickable cell constrained at any time via
+  capture-phase click listener — see `board.ts`'s `allowOnly` and the `onMark`/`onFreeze`
+  hooks in `cell.ts`), 3 (handoff to the help button). The welcome step (step 0) offers
+  three ways out — "Start" begins the walkthrough; "Just the rules" and "Skip" both mark
+  the tutorial seen without playing it (so it never auto-shows again), differing only in
+  that "Just the rules" opens the help dialog's rules section (`onShowRules` in
+  `tutorial.ts`'s config) instead of just closing. A mid-walkthrough Skip jumps to the
+  final step so the player always learns where the help button and replay affordance are.
+  See docs/plans/help.md.
 
 `src/main.ts` wires all of the above together: it decides options-drawer-vs-board from
 `?size=`, resolves a resumable `SavedGame` for the requested size/`?board-id=`
@@ -123,7 +154,11 @@ Most modules are factory functions, each returning an object literal holding sta
 `timer.restore`, `board.game.*`), and owns `persist()` — the single function that calls
 both `saveGame` and `recordAttempt` on every board click plus the `visibilitychange` /
 `beforeunload` "player might be leaving" signals, so both stores stay checkpointed on the
-same cadence.
+same cadence. The tutorial auto-starts for first-time players (gated on `saved === null &&
+!hasSeenTutorial()`), pauses the timer with `restore(elapsedMs, false)` (not `stop()`, to
+avoid silently inflating the real game's score with tutorial time), and participates in
+the `isAnyDialogOpen` predicate so arrow keys and other board hotkeys don't act on the
+hidden real board while it's up.
 
 `src/board/generate.ts` is the bridge to the generator. `generateCells()` posts to one
 or more Web Workers and maps the result through `newCell`; `cellsFromArrays()` is the

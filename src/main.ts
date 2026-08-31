@@ -36,6 +36,8 @@ import { newScoreView } from "./scoreview/scoreview";
 import { newUserMenu } from "./usermenu/usermenu";
 import { newPreferences } from "./preferences/preferences";
 import { newHelpOverlay, newHelpButton } from "./help/help";
+import { newTutorial } from "./tutorial/tutorial";
+import { hasSeenTutorial, TUTORIAL_SEED, TUTORIAL_BONUS } from "./persistence/tutorial";
 
 const app = document.querySelector("#app")!;
 
@@ -64,9 +66,6 @@ const options = newOptions({
   difficulty: urlDifficulty,
 });
 app.append(options.html);
-
-const helpOverlay = newHelpOverlay();
-app.append(helpOverlay.html);
 
 interface Status {
   html: HTMLDivElement;
@@ -173,8 +172,62 @@ function snapshot(
   };
 }
 
+/** The tutorial's one-time completion bonus — shared by the root-URL (no board yet) and in-board tutorial instances. */
+function recordTutorialBonus(isFirstTime: boolean): void {
+  if (isFirstTime) {
+    recordAttempt(4, TUTORIAL_SEED, {
+      status: "won",
+      elapsedMs: 0,
+      difficulty: "easy",
+      score: TUTORIAL_BONUS,
+    });
+  }
+}
+
 async function main(): Promise<void> {
   if (sizeParam === null) {
+    if (!hasSeenTutorial()) {
+      // First-ever visit, no board/chrome exists yet: run the tutorial right
+      // here using its own sandbox board (it never needed a real one) before
+      // asking the player to pick a size. userMenu/helpButton anchors
+      // resolve to null pre-board — the tutorial degrades those steps to an
+      // unanchored/centered bubble rather than failing (see
+      // tutorial.test.ts's "handles missing anchor elements gracefully").
+      let tookRulesPath = false;
+      const tutorial = newTutorial({
+        anchors: {
+          userMenu: () => document.querySelector<HTMLElement>("#user-menu"),
+          helpButton: () => document.querySelector<HTMLElement>("#help"),
+        },
+        onShowRules: () => {
+          tookRulesPath = true;
+          helpOverlay.open();
+        },
+        onResume: () => {
+          // Fires whenever the tutorial closes, for any reason. The "just
+          // the rules" path sets tookRulesPath before this runs (see
+          // tutorial.ts's showRules()) — in that case defer to the help
+          // dialog's own close handler below instead of opening options out
+          // from under it.
+          if (!tookRulesPath) options.open({ dismissable: false });
+        },
+        onComplete: recordTutorialBonus,
+      });
+      app.append(tutorial.html);
+
+      const helpOverlay = newHelpOverlay({
+        onReplayTutorial: () => tutorial.start("replay"),
+      });
+      app.append(helpOverlay.html);
+      helpOverlay.html.addEventListener("close", () => {
+        options.open({ dismissable: false });
+      });
+
+      tutorial.start("first-run");
+      startPregeneration({ difficulty: urlDifficulty });
+      return;
+    }
+
     // Nothing behind the drawer to go back to, so it cannot be dismissed.
     options.open({ dismissable: false });
     startPregeneration({ difficulty: urlDifficulty });
@@ -313,6 +366,30 @@ async function main(): Promise<void> {
     const helpButton = newHelpButton(() => helpOverlay.open());
     aboveBoardRowLeft.append(helpButton);
 
+    // Build the help overlay here (after helpButton exists) so it can be wired with tutorial replay
+    let pausedElapsed = 0;
+    const tutorial = newTutorial({
+      anchors: {
+        userMenu: () => document.querySelector<HTMLElement>("#user-menu"),
+        helpButton: () => document.querySelector<HTMLElement>("#help"),
+      },
+      onPause: () => {
+        pausedElapsed = timer.elapsedMs();
+        timer.restore(pausedElapsed, false);
+      },
+      onResume: () => {
+        if (board.game.state === 0) timer.restore(pausedElapsed, true);
+      },
+      onShowRules: () => helpOverlay.open(),
+      onComplete: recordTutorialBonus,
+    });
+    app.append(tutorial.html);
+
+    const helpOverlay = newHelpOverlay({
+      onReplayTutorial: () => tutorial.start("replay"),
+    });
+    app.append(helpOverlay.html);
+
     // "Start over": resets progress on this exact board (same seed) rather
     // than picking a different one, distinct from both "New game" entry
     // points (options drawer, gameover's "New game, same size") — see
@@ -353,7 +430,7 @@ async function main(): Promise<void> {
 
     // Build the "is any dialog open" predicate used by keyboard navigation
     const isAnyDialogOpen = () =>
-      options.html.open || gameOver.html.open || helpOverlay.html.open;
+      options.html.open || gameOver.html.open || helpOverlay.html.open || tutorial.isOpen();
 
     startPregeneration({ playingSize: size, difficulty });
 
@@ -503,6 +580,11 @@ async function main(): Promise<void> {
         // interaction still resumes into this exact board rather than
         // generating a different random one.
         persist();
+      }
+
+      // Auto-start tutorial for first-time players with a fresh board
+      if (saved === null && !hasSeenTutorial() && board.game.state === 0) {
+        tutorial.start("first-run");
       }
     }
 

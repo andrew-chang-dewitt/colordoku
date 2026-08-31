@@ -23,6 +23,7 @@ import { getHistory } from "../persistence/history";
 import type { Difficulty } from "../options/options";
 import { formatElapsed } from "../timer/timer";
 import { buildShareUrl, newShareButton } from "../share/share";
+import { TUTORIAL_SEED } from "../persistence/tutorial";
 import {
   currentWeekBounds,
   weeklyScoreTotal,
@@ -263,20 +264,24 @@ export function newHistoryView({
     size.textContent = `${entry.size}×${entry.size}`;
     main.append(size);
 
+    const isTutorialEntry = entry.seed === TUTORIAL_SEED;
+
     const status = document.createElement("span");
     status.className = `${classes.entryStatus} ${classes[STATUS_CLASSES[entry.status]]}`;
-    status.textContent = STATUS_LABELS[entry.status];
+    status.textContent = isTutorialEntry ? "Tutorial" : STATUS_LABELS[entry.status];
     main.append(status);
 
-    const difficulty = document.createElement("span");
-    difficulty.className = classes.entryDifficulty;
-    difficulty.textContent = DIFFICULTY_LABELS[entry.difficulty];
-    main.append(difficulty);
+    if (!isTutorialEntry) {
+      const difficulty = document.createElement("span");
+      difficulty.className = classes.entryDifficulty;
+      difficulty.textContent = DIFFICULTY_LABELS[entry.difficulty];
+      main.append(difficulty);
 
-    const attempt = document.createElement("span");
-    attempt.className = classes.entryAttempt;
-    attempt.textContent = `Attempt ${entry.attempt}`;
-    main.append(attempt);
+      const attempt = document.createElement("span");
+      attempt.className = classes.entryAttempt;
+      attempt.textContent = `Attempt ${entry.attempt}`;
+      main.append(attempt);
+    }
 
     // "—" for a null score: still in progress, or an entry migrated from
     // before scoring existed (see history.ts's HistoryEntry.score doc
@@ -310,12 +315,16 @@ export function newHistoryView({
     const actions = document.createElement("div");
     actions.className = classes.entryActions;
 
-    const playAgain = document.createElement("button");
-    playAgain.type = "button";
-    playAgain.className = "btn btn-secondary";
-    playAgain.textContent = "Play again";
-    playAgain.addEventListener("click", () => onPlayAgain(entry.size, entry.seed, entry.difficulty));
-    actions.append(playAgain);
+    // Don't offer "Play again" for tutorial entries (replaying ?board-id=<TUTORIAL_SEED> would generate
+    // an unrelated real board rather than the hand-built practice one)
+    if (!isTutorialEntry) {
+      const playAgain = document.createElement("button");
+      playAgain.type = "button";
+      playAgain.className = "btn btn-secondary";
+      playAgain.textContent = "Play again";
+      playAgain.addEventListener("click", () => onPlayAgain(entry.size, entry.seed, entry.difficulty));
+      actions.append(playAgain);
+    }
 
     const share = newShareButton({
       getUrl: () => buildShareUrl(entry.size, entry.seed, location.origin, location.pathname, entry.difficulty),

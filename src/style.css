@@ -396,7 +396,7 @@ html {
   overscroll-behavior: none;
 }
 
-#board {
+#board, .board {
   /* --board-size is set inline by newBoard(); 4 is the pre-generator fallback. */
 
   /* --board-gap is 0, not a hairline-sized constant any more: region
