@@ -74,7 +74,6 @@ export function newShareButton({
   const icon = document.createElement("span");
   icon.setAttribute("aria-hidden", "true");
   icon.style.display = "inline-flex";
-  icon.style.marginRight = "0.35em";
   icon.style.verticalAlign = "-0.15em";
   icon.innerHTML =
     '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
