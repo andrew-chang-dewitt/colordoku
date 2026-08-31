@@ -55,6 +55,11 @@ export function newHelpOverlay(config?: HelpConfig): HelpOverlay {
   heading.textContent = "How to play";
   card.append(heading);
 
+  const objective = document.createElement("p");
+  objective.innerText =
+    "Your goal is to find every queen without making too many incorrect guesses.";
+  card.append(objective);
+
   // Section: The rules
   const rulesSection = section("The rules");
   const rulesList = document.createElement("ol");
@@ -65,7 +70,8 @@ export function newHelpOverlay(config?: HelpConfig): HelpOverlay {
   rulesList.append(rule1);
   const rule2 = document.createElement("li");
   rule2.className = classes.item;
-  rule2.textContent = "No two queens can be adjacent (orthogonally or diagonally).";
+  rule2.textContent =
+    "No two queens can be adjacent (orthogonally or diagonally).";
   rulesList.append(rule2);
   rulesSection.append(rulesList);
   card.append(rulesSection);
@@ -111,6 +117,11 @@ export function newHelpOverlay(config?: HelpConfig): HelpOverlay {
 
   // Section: Keyboard controls
   const keyboardSection = section("Keyboard controls");
+  const keyboardText = document.createElement("p");
+  keyboardText.innerHTML =
+    "The basics: arrow keys (or <code>WASD</code> or vim-style <code>HJKL</code>) to move the cell cursor, then <code>X</code> to eliminate & <code>Q</code> to guess.";
+  keyboardSection.append(keyboardText);
+
   const keyboardList = document.createElement("ul");
   keyboardList.className = classes.list;
 

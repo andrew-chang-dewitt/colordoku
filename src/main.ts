@@ -1,10 +1,20 @@
 import "./style.css";
 import type { Board } from "./board/board";
-import { newBoard, attachKeyboardNavigation, maxGuessesFor } from "./board/board";
+import {
+  newBoard,
+  attachKeyboardNavigation,
+  maxGuessesFor,
+} from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
 import { startPregeneration } from "./board/pregenerate";
 import type { Difficulty } from "./options/options";
-import { newOptions, goToSize, startOver, isDifficulty, DEFAULT_DIFFICULTY } from "./options/options";
+import {
+  newOptions,
+  goToSize,
+  startOver,
+  isDifficulty,
+  DEFAULT_DIFFICULTY,
+} from "./options/options";
 import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
@@ -43,7 +53,9 @@ const seed = boardIdParam === null ? undefined : Number(boardIdParam);
 // this is only the *URL's* difficulty though; a resumable SavedGame's own
 // stored difficulty still wins inside main() below, same as seed does.
 const difficultyParam = params.get("difficulty");
-const urlDifficulty: Difficulty = isDifficulty(difficultyParam) ? difficultyParam : DEFAULT_DIFFICULTY;
+const urlDifficulty: Difficulty = isDifficulty(difficultyParam)
+  ? difficultyParam
+  : DEFAULT_DIFFICULTY;
 
 const options = newOptions({
   size: sizeParam === null ? undefined : Number(sizeParam),
@@ -233,7 +245,12 @@ async function main(): Promise<void> {
     // rest of this session, used for board generation, persistence, and
     // scoring.
     const difficulty: Difficulty = saved?.difficulty ?? urlDifficulty;
-    const board = await newBoard(size, difficulty, saved?.seed ?? seed, controller.signal);
+    const board = await newBoard(
+      size,
+      difficulty,
+      saved?.seed ?? seed,
+      controller.signal,
+    );
     aboveBoardRowCenter.append(board.htmlHud);
 
     mainHtml.append(board.htmlBoard);
@@ -305,7 +322,13 @@ async function main(): Promise<void> {
       onChangeOptions: () => options.open({ dismissable: true }),
       onTryAgain: () => startOver(size, board.seed, difficulty),
       getShareUrl: () =>
-        buildShareUrl(size, board.seed, location.origin, location.pathname, difficulty),
+        buildShareUrl(
+          size,
+          board.seed,
+          location.origin,
+          location.pathname,
+          difficulty,
+        ),
     });
     app.append(gameOver.html);
 
@@ -315,14 +338,21 @@ async function main(): Promise<void> {
 
     // Wire up keyboard navigation (called here, not inside newBoard, so we have
     // access to the dialog state that was constructed in main.ts)
-    attachKeyboardNavigation(board.htmlBoard, board.state, board.game, isAnyDialogOpen, {
-      onHelp: () => helpOverlay.open(),
-    });
+    attachKeyboardNavigation(
+      board.htmlBoard,
+      board.state,
+      board.game,
+      isAnyDialogOpen,
+      {
+        onHelp: () => helpOverlay.open(),
+      },
+    );
 
     startPregeneration({ playingSize: size, difficulty });
 
     const maxGuesses = maxGuessesFor(size, difficulty);
-    const wrongGuessesFrom = (guessesLeft: number): number => maxGuesses - guessesLeft;
+    const wrongGuessesFrom = (guessesLeft: number): number =>
+      maxGuesses - guessesLeft;
 
     // Checkpoints both SavedGame (single-slot "resume where I left off") and
     // this attempt's history entry (see persistence/history.ts) on the same
@@ -413,7 +443,13 @@ async function main(): Promise<void> {
       // No fresh persist() needed here — this game already ended and was
       // recorded in a prior session, so its score is already in history.
       const weeklyScore = weeklyScoreTotal(getHistory(), currentWeekBounds());
-      gameOver.show({ state: saved.gameState, elapsedMs: saved.elapsedMs, score, size, weeklyScore });
+      gameOver.show({
+        state: saved.gameState,
+        elapsedMs: saved.elapsedMs,
+        score,
+        size,
+        weeklyScore,
+      });
     } else {
       // Persist on every interaction with a cell (marking, eliminating, or
       // guessing) — cheap, bounded by how often the player actually clicks,
