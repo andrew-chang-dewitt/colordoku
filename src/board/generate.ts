@@ -91,7 +91,29 @@ let pool: Worker[] = [];
 const pending = new Map<number, Pending>();
 let nextId = 1;
 
-function spawnWorker(): Worker {
+let foregroundJobs = 0;
+const busyListeners = new Set<(busy: boolean) => void>();
+
+export function isGenerating(): boolean {
+  return foregroundJobs > 0;
+}
+
+export function onGeneratingChange(listener: (busy: boolean) => void): () => void {
+  busyListeners.add(listener);
+  return () => { busyListeners.delete(listener); };
+}
+
+function setForegroundJobs(next: number): void {
+  const wasBusy = foregroundJobs > 0;
+  foregroundJobs = next;
+  const isBusy = foregroundJobs > 0;
+  if (wasBusy === isBusy) return;
+  for (const listener of [...busyListeners]) {
+    try { listener(isBusy); } catch { /* ignored on purpose */ }
+  }
+}
+
+function spawnWorker(onFatal: (err: Error) => void): Worker {
   const w = new Worker(new URL("./generate.worker.ts", import.meta.url), {
     type: "module",
   });
@@ -112,14 +134,14 @@ function spawnWorker(): Worker {
     }
   });
   w.addEventListener("error", (event) => {
-    failAll(new Error(`board generator worker failed: ${event.message}`));
+    onFatal(new Error(`board generator worker failed: ${event.message}`));
   });
   return w;
 }
 
 /** Grows the pool to at least `n` workers, reusing any that already exist. */
 function ensurePoolSize(n: number): Worker[] {
-  while (pool.length < n) pool.push(spawnWorker());
+  while (pool.length < n) pool.push(spawnWorker(failAll));
   return pool;
 }
 
@@ -139,6 +161,7 @@ function failAll(reason: Error): void {
  * the whole pool.
  */
 export function cancelGeneration(): void {
+  cancelBackgroundGeneration();
   failAll(new Error("board generation cancelled"));
 }
 
@@ -151,6 +174,62 @@ export function preload(): void {
 
 function randomSeed(): number {
   return (Math.random() * 0x1_0000_0000) >>> 0;
+}
+
+// --- background pregeneration (single worker, NOT in the pool) ----------
+
+let bgWorker: Worker | null = null;
+let bgId: number | null = null;
+
+function failBackground(reason: Error): void {
+  if (bgId !== null) {
+    const entry = pending.get(bgId);
+    pending.delete(bgId);
+    bgId = null;
+    entry?.reject(reason);
+  }
+  if (bgWorker !== null) {
+    bgWorker.terminate();
+    bgWorker = null;
+  }
+}
+
+export function cancelBackgroundGeneration(): void {
+  failBackground(new BackgroundPreempted());
+}
+
+export async function generateRawInBackground(
+  size: number,
+  difficulty: Difficulty,
+): Promise<RawBoard> {
+  if (!isSupportedSize(size)) {
+    throw new RangeError(`unsupported board size ${size}: must be 1, or ${MIN_SIZE} to ${MAX_SIZE}`);
+  }
+  if (isGenerating()) throw new BackgroundPreempted();
+  if (bgId !== null) throw new Error("a background generation is already in flight");
+
+  if (bgWorker === null) bgWorker = spawnWorker(failBackground);
+  const worker = bgWorker;
+  const id = nextId++;
+  bgId = id;
+  const seed = randomSeed();
+
+  try {
+    const message = await new Promise<GenerateResponse & { ok: true }>((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      worker.postMessage({ id, size, seed, difficulty } satisfies GenerateRequest);
+    });
+    return {
+      size,
+      difficulty,
+      seed: message.seed,
+      regions: message.regions,
+      queenCols: message.queenCols,
+    };
+  } finally {
+    pending.delete(id);
+    if (bgId === id) bgId = null;
+  }
 }
 
 // --- the API --------------------------------------------------------------
@@ -206,6 +285,21 @@ export function cellsFromArrays(
  * aborting terminates every worker involved, since the underlying Rust call
  * cannot be interrupted.
  */
+export class BackgroundPreempted extends Error {
+  constructor() {
+    super("background generation preempted by a foreground request");
+    this.name = "BackgroundPreempted";
+  }
+}
+
+export interface RawBoard {
+  size: number;
+  difficulty: Difficulty;
+  seed: number;
+  regions: Uint8Array;
+  queenCols: Uint8Array;
+}
+
 export interface GeneratedCells {
   cells: Cell[][];
   /**
@@ -231,6 +325,8 @@ export async function generateCells(
     );
   }
   signal?.throwIfAborted();
+  // A user-requested generation always outranks pregeneration.
+  cancelBackgroundGeneration();
 
   // An explicit seed names one specific board, so it always runs single-worker
   // — racing would make no sense (and no difference) when there's only one
@@ -241,6 +337,7 @@ export async function generateCells(
   const base = explicit ? (seed as number) >>> 0 : randomSeed();
   const seeds = width === 1 ? [base] : Array.from({ length: width }, (_, i) => deriveSeed(base, i));
 
+  setForegroundJobs(foregroundJobs + 1);
   const workers = ensurePoolSize(width).slice(0, width);
   const idToWorker = new Map<number, Worker>();
 
@@ -294,6 +391,7 @@ export async function generateCells(
       seed: winner.seed,
     };
   } finally {
+    setForegroundJobs(foregroundJobs - 1);
     if (onAbort !== undefined) signal?.removeEventListener("abort", onAbort);
     for (const id of idToWorker.keys()) pending.delete(id);
   }

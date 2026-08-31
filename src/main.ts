@@ -2,6 +2,7 @@ import "./style.css";
 import type { Board } from "./board/board";
 import { newBoard, attachKeyboardNavigation, maxGuessesFor } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
+import { startPregeneration } from "./board/pregenerate";
 import type { Difficulty } from "./options/options";
 import { newOptions, goToSize, startOver, isDifficulty, DEFAULT_DIFFICULTY } from "./options/options";
 import { newTimer } from "./timer/timer";
@@ -162,6 +163,7 @@ async function main(): Promise<void> {
   if (sizeParam === null) {
     // Nothing behind the drawer to go back to, so it cannot be dismissed.
     options.open({ dismissable: false });
+    startPregeneration({ difficulty: urlDifficulty });
     return;
   }
 
@@ -313,6 +315,8 @@ async function main(): Promise<void> {
     attachKeyboardNavigation(board.htmlBoard, board.state, board.game, isAnyDialogOpen, {
       onHelp: () => helpOverlay.open(),
     });
+
+    startPregeneration({ playingSize: size, difficulty });
 
     const maxGuesses = maxGuessesFor(size, difficulty);
     const wrongGuessesFrom = (guessesLeft: number): number => maxGuesses - guessesLeft;

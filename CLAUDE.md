@@ -133,6 +133,17 @@ reproduced — only the seed the winner actually used does, returned as
 `GeneratedCells.seed`. See `generate.race.test.ts` for the pool/race orchestration tests
 (fake `Worker`, no real wasm).
 
+`src/board/pregenerate.ts` — low-priority background pregeneration for boards with n > 11.
+`startPregeneration({playingSize, difficulty})` runs a scheduler that uses
+`generateRawInBackground()` to queue up one pregenerated board per size (12–15) per difficulty
+when the browser is idle and no foreground generation is active. Pregenerated boards are
+cached in `src/persistence/pregen.ts` (localStorage-backed, max 6 entries, evicts oldest).
+`takePregeneratedCells()` consumes a cached board when available; the seed is preserved so
+all downstream code (share links, history, saved games) work without changes. The background
+worker is never added to the foreground pool (critical: a blocked bg worker would queue a
+foreground postMessage behind it); foreground generation immediately preempts any in-flight
+background work via `cancelBackgroundGeneration()`.
+
 ### Rust generator (`generator/`)
 
 Compiled to wasm via `wasm-pack --target web` into the gitignored `src/generator/pkg/`.
@@ -197,6 +208,14 @@ unaffected by either change: `max_nodes` only changes how many restarts a given 
 RNG stream needs to reach the same eventual attempt, and racing only ever picks among
 independently-seeded *candidates* — a specific seed passed in always resolves
 single-worker, deterministically, exactly as before.
+
+**Background pregeneration** (see `src/board/pregenerate.ts`): for n > 11, one board per
+size (12–15) per difficulty is pregenerated in a single background worker during idle time,
+cached locally, and handed to the next request for that size/difficulty so the player sees a
+board instantly. Background generation is strictly low-priority: at most one worker, never
+started while foreground generation is running, and terminated synchronously the instant a
+foreground request arrives. Pregenerated boards are evicted from localStorage after 6 entries
+(oldest first) or when a new board of the same size/difficulty is added (updated in place).
 
 ### CSS
 

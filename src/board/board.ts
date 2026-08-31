@@ -2,6 +2,7 @@ import type { Cell } from "../cell/cell";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
+import { takePregeneratedCells } from "./pregenerate";
 import type { Difficulty } from "../options/options";
 
 export interface Board {
@@ -747,13 +748,9 @@ export async function newBoard(
   signal?: AbortSignal,
 ): Promise<Board> {
   const game = newGame(size, maxGuessesFor(size, difficulty));
-  const { cells, seed: resolvedSeed } = await generateCells(
-    game,
-    size,
-    difficulty,
-    seed,
-    signal,
-  );
+  const pregenerated = seed === undefined ? takePregeneratedCells(game, size, difficulty) : null;
+  const { cells, seed: resolvedSeed } =
+    pregenerated ?? (await generateCells(game, size, difficulty, seed, signal));
 
   applyRegionBoundaries(cells);
 

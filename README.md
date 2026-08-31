@@ -276,12 +276,9 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
       empty)
 - [ ] #timer: pause timer whenever user is in a modal/menu/drawer
 - [ ] #timer: obscure game board (pixelate it maybe?) whenever timer is paused
-- [ ] speed up perception of large board generation by generating boards w/ n >
-      11 in the background when no other compute workers are running. 1 board
-      pregenerated for each of the specified sizes should be enough, this includes
-      a next board of the same size when the user is playing a board of n > 11
-      already. pregenerated boards can be held in memory, or even in localstate for
-      future plays as well so they don't have to be regenerated on every reload.
+- [x] #pregen: speed up perception of large board generation by generating boards w/ n >
+      11 in the background when no other compute workers are running (plan: docs/plans/pregenerated-boards.md)
+- [ ] disable board size 16 — generation time (minutes) makes it impractical
 - [ ] #leaderboard _long term goal_: global leaderboard of cumulative scores
       for today & this week.
   - [ ] THIS MUST BE AN EXPLICIT OPT-IN FEATURE, defaults to users not joining

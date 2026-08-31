@@ -62,20 +62,20 @@ class FakeWorker {
 
 vi.stubGlobal("Worker", FakeWorker);
 
-describe("generateCells racing", () => {
-  beforeEach(() => {
-    FakeWorker.instances.length = 0;
-    vi.stubGlobal("navigator", { hardwareConcurrency: 4 });
-  });
+// Top-level beforeEach/afterEach for all tests
+beforeEach(() => {
+  FakeWorker.instances.length = 0;
+  vi.stubGlobal("navigator", { hardwareConcurrency: 4 });
+});
 
-  afterEach(async () => {
-    // Drop every pooled fake worker so the next test starts from a clean
-    // pool and its own spawn count is exactly what it triggers itself.
-    const { cancelGeneration } = await import("./generate");
-    cancelGeneration();
-    vi.unstubAllGlobals();
-    vi.stubGlobal("Worker", FakeWorker);
-  });
+afterEach(async () => {
+  // Drop every pooled fake worker so the next test starts from a clean
+  // pool and its own spawn count is exactly what it triggers itself.
+  const { cancelGeneration } = await import("./generate");
+  cancelGeneration();
+});
+
+describe("generateCells racing", () => {
 
   it("races several workers for a fresh board at/above SLOW_SIZE and returns the winner's seed", async () => {
     const { generateCells, SLOW_SIZE } = await import("./generate");
@@ -157,5 +157,124 @@ describe("generateCells racing", () => {
 
     FakeWorker.instances[0].respondOk({ seed: 1 });
     await promise;
+  });
+});
+
+describe("isGenerating() / onGeneratingChange()", () => {
+  it("starts false and becomes true during foreground generation", async () => {
+    const { generateCells, isGenerating, SLOW_SIZE } = await import("./generate");
+    expect(isGenerating()).toBe(false);
+
+    const game = newGame(SLOW_SIZE, 2);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
+    expect(isGenerating()).toBe(true);
+
+    FakeWorker.instances[0].respondOk({ seed: 1 });
+    await promise;
+    expect(isGenerating()).toBe(false);
+  });
+
+  it("calls listeners when generation starts and ends", async () => {
+    const { generateCells, onGeneratingChange, SLOW_SIZE } = await import("./generate");
+    const changes: boolean[] = [];
+    const unsub = onGeneratingChange((busy) => changes.push(busy));
+
+    const game = newGame(SLOW_SIZE, 2);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
+    FakeWorker.instances[0].respondOk({ seed: 1 });
+    await promise;
+
+    unsub();
+    expect(changes).toEqual([true, false]);
+  });
+
+  it("does not double-notify if nothing changed", async () => {
+    const { generateCells, onGeneratingChange, SLOW_SIZE } = await import("./generate");
+    const changes: boolean[] = [];
+    onGeneratingChange((busy) => changes.push(busy));
+
+    const game = newGame(SLOW_SIZE, 2);
+    const promise = generateCells(game, SLOW_SIZE, "medium");
+    FakeWorker.instances[0].respondOk({ seed: 1 });
+    await promise;
+
+    expect(changes).toEqual([true, false]);
+  });
+});
+
+describe("generateRawInBackground", () => {
+  it("generates a raw board (regions, queenCols, seed)", async () => {
+    const { generateRawInBackground } = await import("./generate");
+
+    const promise = generateRawInBackground(12, "medium");
+    expect(FakeWorker.instances).toHaveLength(1);
+
+    FakeWorker.instances[0].respondOk({ seed: 5555 });
+    const raw = await promise;
+
+    expect(raw.size).toBe(12);
+    expect(raw.difficulty).toBe("medium");
+    expect(raw.seed).toBe(5555);
+    expect(raw.regions).toBeInstanceOf(Uint8Array);
+    expect(raw.queenCols).toBeInstanceOf(Uint8Array);
+  });
+
+  it("rejects when a foreground generation is already running", async () => {
+    const { generateCells, generateRawInBackground, SLOW_SIZE } = await import("./generate");
+
+    const game = newGame(SLOW_SIZE, 2);
+    const fgPromise = generateCells(game, SLOW_SIZE, "medium");
+
+    await expect(generateRawInBackground(12, "medium")).rejects.toThrow(
+      "background generation preempted by a foreground request",
+    );
+
+    FakeWorker.instances[0].respondOk({ seed: 1 });
+    await fgPromise;
+  });
+
+  it("rejects if already running a background generation", async () => {
+    const { generateRawInBackground } = await import("./generate");
+
+    const promise1 = generateRawInBackground(12, "medium");
+    await expect(generateRawInBackground(13, "hard")).rejects.toThrow("background generation is already in flight");
+
+    FakeWorker.instances[0].respondOk({ seed: 1 });
+    await promise1;
+  });
+});
+
+describe("cancelBackgroundGeneration", () => {
+  it("terminates only the background worker, not pool workers", async () => {
+    const { generateRawInBackground, cancelBackgroundGeneration, generateCells, SLOW_SIZE } = await import(
+      "./generate"
+    );
+
+    // Start a background generation (creates FakeWorker at index 0)
+    const bgPromise = generateRawInBackground(12, "medium");
+    const bgWorker = FakeWorker.instances[0];
+
+    // Start a foreground generation to populate the pool (creates pool workers at indices 1+)
+    const game = newGame(SLOW_SIZE, 2);
+    const fgPromise = generateCells(game, SLOW_SIZE, "medium");
+    const poolWorkers = FakeWorker.instances.slice(1);
+
+    // Cancel background
+    cancelBackgroundGeneration();
+
+    // Background worker should be terminated
+    expect(bgWorker.terminated).toBe(true);
+
+    // Pool workers should not be terminated
+    for (const poolWorker of poolWorkers) {
+      expect(poolWorker.terminated).toBe(false);
+    }
+
+    // Complete the foreground generation with the first pool worker
+    poolWorkers[0].respondOk({ seed: 1 });
+    await fgPromise;
+
+    // Background generation should have been rejected
+    await expect(bgPromise).rejects.toThrow();
   });
 });
