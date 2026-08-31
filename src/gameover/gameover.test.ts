@@ -107,16 +107,19 @@ describe("newGameOver", () => {
   it("shows share button on win but not on loss", () => {
     const { gameOver } = mount();
 
-    // Win: share button visible
+    // Win: share button visible. newShareButton()'s .html is now a wrapper
+    // div around the actual <button> (so a flash message can render below
+    // it) — visibility is toggled on that wrapper, not the inner button.
     gameOver.show({ state: 1, elapsedMs: 65_000, score: 1234, size: 4, weeklyScore: 5000 });
     const shareButton = [...gameOver.html.querySelectorAll("button")].find(
       (b) => b.getAttribute("aria-label") === "Share",
     );
-    expect(shareButton?.hidden).toBe(false);
+    const shareWrapper = shareButton?.parentElement;
+    expect(shareWrapper?.hidden).toBe(false);
 
     // Loss: share button hidden
     gameOver.show({ state: 2, elapsedMs: 12_000, score: 0, size: 4, weeklyScore: 0 });
-    expect(shareButton?.hidden).toBe(true);
+    expect(shareWrapper?.hidden).toBe(true);
   });
 
   it("the 'try again' action on a loss closes the modal and calls onTryAgain once", () => {
