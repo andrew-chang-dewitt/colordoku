@@ -81,6 +81,14 @@ export interface Cell {
    * double-click that then committed on this same cell.
    */
   onFreeze?: () => void;
+  /**
+   * Called immediately after a committed guess resolves *correctly* (this
+   * cell's own queen found), right after onFreeze(). Never called on a wrong
+   * guess. Lets board-level code (which knows about neighboring cells; this
+   * module deliberately does not) react to "a queen was just confirmed" without
+   * entangling cell.ts with grid-wide knowledge.
+   */
+  onQueenFound?: () => void;
 }
 
 export function newCell(
@@ -161,6 +169,7 @@ export function newCell(
 
     cell.frozen = true;
     cell.onFreeze?.();
+    if (cell.queen) cell.onQueenFound?.();
     cell.update();
 
     // Defer game.incFound()/incGuess() — game.onEnd's listeners (main.ts) can

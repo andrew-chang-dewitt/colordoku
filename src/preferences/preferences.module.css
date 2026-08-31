@@ -1,0 +1,96 @@
+/* A bottom sheet built on <dialog> + showModal(), mirroring options.module.css. */
+
+.drawer {
+  /* Undo the UA's centred modal box and pin it to the bottom edge. */
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow: auto;
+
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  border-radius: 0.75em 0.75em 0 0;
+  box-shadow: 0 -0.5em 1.5em rgb(0 0 0 / 0.3);
+
+  translate: 0 100%;
+  transition:
+    translate 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open] {
+  translate: 0 0;
+}
+
+/* Without this the drawer would pop in: it animates from display:none. */
+@starting-style {
+  .drawer[open] {
+    translate: 0 100%;
+  }
+}
+
+/* Everything still visible above the drawer is greyed out and unclickable. */
+.drawer::backdrop {
+  background-color: rgb(0 0 0 / 0);
+  transition:
+    background-color 250ms ease,
+    overlay 250ms allow-discrete,
+    display 250ms allow-discrete;
+}
+
+.drawer[open]::backdrop {
+  background-color: rgb(0 0 0 / 0.55);
+}
+
+@starting-style {
+  .drawer[open]::backdrop {
+    background-color: rgb(0 0 0 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .drawer::backdrop {
+    transition-duration: 1ms;
+  }
+}
+
+/* Covers the dialog's whole box, same "click landed on the dialog itself ==
+ * backdrop" trick historyview/scoreview use — padding lives here instead of
+ * on .drawer for that reason. */
+.panel {
+  padding: 1.5em;
+  margin: 0 auto;
+  max-width: 32em;
+}
+
+.heading {
+  margin: 0 0 1em;
+  font-size: 1.3em;
+}
+
+/* Checkbox field styling */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin: 1.25em 0;
+}
+
+.field input[type="checkbox"] {
+  accent-color: var(--color-on-surface);
+  cursor: pointer;
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.field label {
+  cursor: pointer;
+  user-select: none;
+}

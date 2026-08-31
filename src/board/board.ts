@@ -85,6 +85,44 @@ export function cellsBetween(from: Coord, to: Coord): Coord[] | null {
   return null;
 }
 
+/**
+ * Every coordinate eliminated by a correct queen at (row, col) on a board of
+ * the given size: same row, same column, same region (passed in as `group`
+ * since region membership isn't derivable from coordinates alone), and all 8
+ * orthogonal/diagonal neighbors. Never includes (row, col) itself. Pure and
+ * grid-size-agnostic like cellsBetween — the caller (board.ts, which has the
+ * real Cell objects) is responsible for skipping frozen/already-eliminated
+ * cells and turning this into an effect.
+ */
+export function coordsToEliminate(
+  row: number,
+  col: number,
+  size: number,
+  group: number,
+  groupOf: (r: number, c: number) => number,
+): Coord[] {
+  const seen = new Set<string>();
+  const out: Coord[] = [];
+  const add = (r: number, c: number) => {
+    if (r < 0 || r >= size || c < 0 || c >= size) return;
+    if (r === row && c === col) return;
+    const key = `${r},${c}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ row: r, col: c });
+  };
+
+  for (let c = 0; c < size; c++) add(row, c); // row
+  for (let r = 0; r < size; r++) add(r, col); // column
+  for (let dr = -1; dr <= 1; dr++) // 8 neighbors
+    for (let dc = -1; dc <= 1; dc++)
+      if (dr !== 0 || dc !== 0) add(row + dr, col + dc);
+  for (let r = 0; r < size; r++) // region/color
+    for (let c = 0; c < size; c++) if (groupOf(r, c) === group) add(r, c);
+
+  return out;
+}
+
 export type Direction = "up" | "down" | "left" | "right";
 
 /**
@@ -537,6 +575,43 @@ export function attachRangeGestures(
 }
 
 /**
+ * Wires up auto-elimination: when a correct queen is committed on a cell,
+ * automatically marks every non-frozen, non-already-eliminated cell in the
+ * queen's row, column, region, or within 8-cell diagonal/orthogonal neighbors
+ * as eliminated. Each auto-elimination event is wrapped in a single undo
+ * transaction, so it can be undone as a unit.
+ *
+ * The queen cell itself is never part of the auto-marked set — coordsToEliminate
+ * explicitly excludes it, and mark() doesn't touch it anyway (it's frozen).
+ * Already-eliminated or frozen cells are skipped, never re-marked.
+ */
+export function attachAutoEliminate(
+  cells: Cell[][],
+  undo: UndoStack,
+  isEnabled: () => boolean,
+): void {
+  const size = cells.length;
+
+  cells.forEach((row, r) =>
+    row.forEach((cell, c) => {
+      cell.onQueenFound = () => {
+        if (!isEnabled()) return;
+
+        const targets = coordsToEliminate(r, c, size, cell.group, (rr, cc) => cells[rr][cc].group);
+        undo.begin();
+        for (const { row: tr, col: tc } of targets) {
+          const target = cells[tr][tc];
+          if (target.frozen) continue;
+          if (target.state === 1) continue;
+          target.mark(1);
+        }
+        undo.end();
+      };
+    }),
+  );
+}
+
+/**
  * Wires up keyboard navigation for the board: a cursor position that moves
  * with arrow/WASD/vim keys, X to toggle marks, Q to commit guesses, Shift+direction
  * for range selection, and ? to open the help overlay.
@@ -556,7 +631,7 @@ export function attachKeyboardNavigation(
   cells: Cell[][],
   game: Game,
   isAnyDialogOpen: () => boolean,
-  { onHelp, undo }: { onHelp: () => void; undo?: UndoStack },
+  { onHelp, undo, onCommit }: { onHelp: () => void; undo?: UndoStack; onCommit?: () => void },
 ): () => void {
   const size = cells.length;
 
@@ -738,6 +813,7 @@ export function attachKeyboardNavigation(
       event.preventDefault();
       const cursorCell = cells[cursor.row][cursor.col];
       cursorCell.commit();
+      onCommit?.();
       return;
     }
   }
@@ -768,6 +844,7 @@ export async function newBoard(
   difficulty: Difficulty,
   seed?: number,
   signal?: AbortSignal,
+  isAutoEliminateEnabled: () => boolean = () => false,
 ): Promise<Board> {
   const game = newGame(size, maxGuessesFor(size, difficulty));
   const pregenerated = seed === undefined ? takePregeneratedCells(game, size, difficulty) : null;
@@ -789,6 +866,7 @@ export async function newBoard(
 
   const undo = newUndoStack(cells);
   attachRangeGestures(board, cells, undo);
+  attachAutoEliminate(cells, undo, isAutoEliminateEnabled);
 
   // The HUD groups the guess pips with whatever sits alongside them above the
   // board (currently just the timer, appended into this div by main.ts) so

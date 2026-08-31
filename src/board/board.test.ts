@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
 import { newGame } from "../game/game";
-import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, directionFor, maxGuessesFor } from "./board";
+import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, coordsToEliminate, attachAutoEliminate, directionFor, maxGuessesFor } from "./board";
 import { newUndoStack } from "../undo/undo";
 
 // attachRangeGestures's mouse-drag handling attaches its mousemove/mouseup
@@ -735,5 +735,237 @@ describe("Undo integration", () => {
       expect(success).toBe(false);
       expect(cells[0][0].frozen).toBe(true);
     });
+  });
+});
+
+describe("coordsToEliminate (pure coordinate helper)", () => {
+  it("includes row, column, region, and 8 neighbors for a mid-board cell", () => {
+    const size = 4;
+    const groupOf = (): number => 0; // all cells in same region
+    const coords = coordsToEliminate(1, 1, size, 0, groupOf);
+    const coordSet = new Set(coords.map((c) => `${c.row},${c.col}`));
+
+    // Same row
+    expect(coordSet.has("1,0")).toBe(true);
+    expect(coordSet.has("1,2")).toBe(true);
+    expect(coordSet.has("1,3")).toBe(true);
+
+    // Same column
+    expect(coordSet.has("0,1")).toBe(true);
+    expect(coordSet.has("2,1")).toBe(true);
+    expect(coordSet.has("3,1")).toBe(true);
+
+    // 8 neighbors
+    expect(coordSet.has("0,0")).toBe(true);
+    expect(coordSet.has("0,2")).toBe(true);
+    expect(coordSet.has("2,0")).toBe(true);
+    expect(coordSet.has("2,2")).toBe(true);
+
+    // Never includes self
+    expect(coordSet.has("1,1")).toBe(false);
+  });
+
+  it("clamps coordinates to board boundaries", () => {
+    const size = 4;
+    const groupOf = (): number => 0;
+    const coords = coordsToEliminate(0, 0, size, 0, groupOf);
+    const coordSet = new Set(coords.map((c) => `${c.row},${c.col}`));
+
+    // Only valid cells within bounds
+    coords.forEach((c) => {
+      expect(c.row >= 0 && c.row < size).toBe(true);
+      expect(c.col >= 0 && c.col < size).toBe(true);
+    });
+
+    // Should not include negative or out-of-bounds
+    expect(coordSet.has("-1,0")).toBe(false);
+    expect(coordSet.has("0,-1")).toBe(false);
+    expect(coordSet.has("4,0")).toBe(false);
+    expect(coordSet.has("0,4")).toBe(false);
+  });
+
+  it("includes all cells in the same region", () => {
+    const size = 4;
+    // Cells (0,0), (0,1), (1,0), (1,1) are in region 1
+    const groupOf = (r: number, c: number): number => {
+      if ((r === 0 || r === 1) && (c === 0 || c === 1)) return 1;
+      return 0;
+    };
+    const coords = coordsToEliminate(0, 0, size, 1, groupOf);
+    const coordSet = new Set(coords.map((c) => `${c.row},${c.col}`));
+
+    // All region cells
+    expect(coordSet.has("0,1")).toBe(true);
+    expect(coordSet.has("1,0")).toBe(true);
+    expect(coordSet.has("1,1")).toBe(true);
+  });
+
+  it("deduplicates overlapping coordinates (row/column/neighbor/region overlap)", () => {
+    const size = 4;
+    const coords = coordsToEliminate(0, 0, size, 0, () => 0);
+
+    // Count unique coordinates
+    const coordSet = new Set(coords.map((c) => `${c.row},${c.col}`));
+    expect(coordSet.size).toBe(coords.length); // no duplicates
+  });
+
+  it("never includes the origin cell itself", () => {
+    const size = 4;
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const coords = coordsToEliminate(r, c, size, 0, () => 0);
+        const hasOrigin = coords.some((coord) => coord.row === r && coord.col === c);
+        expect(hasOrigin).toBe(false);
+      }
+    }
+  });
+});
+
+describe("attachAutoEliminate", () => {
+  it("marks eligible cells when a correct queen is committed", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    // Mark some cells as manual marks first
+    cells[1][0].mark(0); // unmarked
+    cells[2][1].mark(0); // unmarked
+
+    // Commit the queen at (1,1)
+    cells[1][1].commit();
+
+    // Same row should be marked
+    expect(cells[1][0].state).toBe(1);
+    expect(cells[1][2].state).toBe(1);
+
+    // Same column should be marked
+    expect(cells[0][1].state).toBe(1);
+    expect(cells[2][1].state).toBe(1);
+    expect(cells[3][1].state).toBe(1);
+
+    // Neighbors should be marked
+    expect(cells[0][0].state).toBe(1);
+    expect(cells[0][2].state).toBe(1);
+    expect(cells[2][0].state).toBe(1);
+    expect(cells[2][2].state).toBe(1);
+  });
+
+  it("skips already-eliminated cells", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    // Pre-mark a cell in the same row
+    cells[1][0].mark(1); // already eliminated
+    expect(cells[1][0].state).toBe(1);
+
+    // Commit the queen
+    cells[1][1].commit();
+
+    // The already-eliminated cell should still be eliminated, not re-marked
+    expect(cells[1][0].state).toBe(1);
+  });
+
+  it("is inert when isEnabled returns false", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => false; // disabled
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    // Commit the queen at (1,1)
+    cells[1][1].commit();
+
+    // No neighbors should be marked
+    expect(cells[1][0].state).toBe(0);
+    expect(cells[1][2].state).toBe(0);
+    expect(cells[0][1].state).toBe(0);
+  });
+
+  it("wrong-guess commit does not trigger auto-elimination", () => {
+    const { cells, undo } = buildGrid(4, [], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    // Commit a wrong guess at (0,0)
+    cells[0][0].commit();
+
+    // No neighbors should be marked (wrong guess doesn't trigger onQueenFound)
+    expect(cells[0][1].state).toBe(0);
+    expect(cells[1][0].state).toBe(0);
+  });
+
+  it("wraps auto-marked cells in a single undo transaction", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    expect(undo!.depth()).toBe(0);
+
+    // Commit the queen
+    cells[1][1].commit();
+
+    expect(undo!.depth()).toBe(1); // one transaction
+  });
+
+  it("undo reverts exactly the auto-marked cells", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    // Manually mark a cell before the queen commit
+    cells[0][0].mark(1);
+    expect(undo!.depth()).toBe(1);
+
+    // Commit the queen
+    cells[1][1].commit();
+    expect(undo!.depth()).toBe(2); // one manual mark, one auto-eliminate
+
+    // Undo the auto-eliminate
+    undo!.undo();
+    expect(undo!.depth()).toBe(1);
+
+    // Auto-marked cells should be back to unmarked
+    expect(cells[1][0].state).toBe(0);
+    expect(cells[0][1].state).toBe(0);
+
+    // The manually marked cell should be unaffected
+    expect(cells[0][0].state).toBe(1);
+  });
+
+  it("queen cell is never undoable", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    cells[1][1].commit();
+    expect(cells[1][1].frozen).toBe(true);
+    expect(cells[1][1].state).toBe(2);
+
+    // Undo
+    undo!.undo();
+
+    // Queen cell should still be frozen and correct
+    expect(cells[1][1].frozen).toBe(true);
+    expect(cells[1][1].state).toBe(2);
+  });
+
+  it("undone cells become freely markable again", () => {
+    const { cells, undo } = buildGrid(4, [[1, 1]], true);
+    const isEnabled = () => true;
+    attachAutoEliminate(cells, undo!, isEnabled);
+
+    cells[1][1].commit();
+    const targetCell = cells[1][0];
+    expect(targetCell.state).toBe(1); // auto-marked
+
+    // Undo
+    undo!.undo();
+    expect(targetCell.state).toBe(0); // unmarked
+
+    // Toggle should work
+    targetCell.toggle();
+    expect(targetCell.state).toBe(1); // marked by toggle
+
+    // The toggle should be undoable
+    expect(undo!.depth()).toBe(1);
   });
 });

@@ -245,6 +245,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     - [x] user preferences
     - [x] leaderboard (if opted in)
 - [ ] user preferences to control
+  - [ ] #auto-eliminate auto-eliminate row/column/region/adjacent cells when a queen is correctly guessed, toggleable in a new preferences drawer (default off) (plan: `docs/plans/auto-eliminate.md`)
   - [ ] if opted into leaderboard
   - [ ] clear local state
 - [x] #history game history persistence - store history of games played in localstate

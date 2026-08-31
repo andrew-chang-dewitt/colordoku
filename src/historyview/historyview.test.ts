@@ -264,8 +264,8 @@ describe("newHistoryView", () => {
   it("each row also gets a Share button", () => {
     const { view } = mount([entry()]);
     view.open();
-    const shareButton = Array.from(view.html.querySelectorAll("button")).find((b) =>
-      b.textContent?.includes("Share"),
+    const shareButton = Array.from(view.html.querySelectorAll("button")).find(
+      (b) => b.getAttribute("aria-label") === "Colordoku",
     );
     expect(shareButton).not.toBeUndefined();
   });

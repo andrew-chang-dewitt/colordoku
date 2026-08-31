@@ -408,4 +408,64 @@ describe("undo hooks (onMark and onFreeze)", () => {
       expect(onFreeze).not.toHaveBeenCalled();
     });
   });
+
+  describe("onQueenFound", () => {
+    it("called by commit() only on a queen cell", () => {
+      const game = newGame(4, 2);
+      const cell1 = newCell(game, 0, true);
+      const cell2 = newCell(game, 0, false);
+      const onQueenFound1 = vi.fn();
+      const onQueenFound2 = vi.fn();
+      cell1.onQueenFound = onQueenFound1;
+      cell2.onQueenFound = onQueenFound2;
+
+      cell1.commit();
+      cell2.commit();
+
+      expect(onQueenFound1).toHaveBeenCalledTimes(1);
+      expect(onQueenFound2).not.toHaveBeenCalled();
+    });
+
+    it("fires after onFreeze in the same commit", () => {
+      const game = newGame(4, 2);
+      const cell = newCell(game, 0, true);
+      const callOrder: string[] = [];
+      cell.onFreeze = () => callOrder.push("onFreeze");
+      cell.onQueenFound = () => callOrder.push("onQueenFound");
+
+      cell.commit();
+
+      expect(callOrder).toEqual(["onFreeze", "onQueenFound"]);
+    });
+
+    it("not called by restore() even for a restored queen cell", () => {
+      const cell = newCell(newGame(4, 2), 0, true);
+      const onQueenFound = vi.fn();
+      cell.onQueenFound = onQueenFound;
+
+      cell.restore(2, true);
+
+      expect(onQueenFound).not.toHaveBeenCalled();
+    });
+
+    it("not called by mark()", () => {
+      const cell = newCell(newGame(4, 2), 0, true);
+      const onQueenFound = vi.fn();
+      cell.onQueenFound = onQueenFound;
+
+      cell.mark(1);
+
+      expect(onQueenFound).not.toHaveBeenCalled();
+    });
+
+    it("not called by toggle()", () => {
+      const cell = newCell(newGame(4, 2), 0, true);
+      const onQueenFound = vi.fn();
+      cell.onQueenFound = onQueenFound;
+
+      cell.toggle();
+
+      expect(onQueenFound).not.toHaveBeenCalled();
+    });
+  });
 });

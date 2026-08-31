@@ -6,8 +6,9 @@ let disposers: Array<() => void> = [];
 function mount(
   onOpenHistory: () => void = vi.fn(),
   onOpenScoreView: () => void = vi.fn(),
+  onOpenPreferences: () => void = vi.fn(),
 ) {
-  const menu = newUserMenu({ onOpenHistory, onOpenScoreView });
+  const menu = newUserMenu({ onOpenHistory, onOpenScoreView, onOpenPreferences });
   disposers.push(menu.dispose);
   document.body.append(menu.html);
   const button = menu.html.querySelector<HTMLButtonElement>("button#user-menu")!;
@@ -66,24 +67,24 @@ describe("menu contents", () => {
     expect(items).toEqual(["Game history", "Score over time", "User preferences", "Leaderboard"]);
   });
 
-  it("'Game history' and 'Score over time' are enabled; the other two are real but inert, not faked", () => {
+  it("'Game history', 'Score over time', and 'User preferences' are enabled; only 'Leaderboard' is disabled", () => {
     const { panel } = mount();
     const [history, scoreView, preferences, leaderboard] = Array.from(panel.querySelectorAll("button"));
     expect(history.disabled).toBe(false);
     expect(scoreView.disabled).toBe(false);
-    expect(preferences.disabled).toBe(true);
+    expect(preferences.disabled).toBe(false);
     expect(leaderboard.disabled).toBe(true);
   });
 
   it("clicking a disabled item does nothing (no click event fires at all)", () => {
     const { button, panel } = mount();
     button.click(); // open
-    const preferences = Array.from(panel.querySelectorAll("button")).find(
-      (b) => b.textContent === "User preferences",
+    const leaderboard = Array.from(panel.querySelectorAll("button")).find(
+      (b) => b.textContent === "Leaderboard",
     )!;
     const spy = vi.fn();
-    preferences.addEventListener("click", spy);
-    preferences.click();
+    leaderboard.addEventListener("click", spy);
+    leaderboard.click();
     expect(spy).not.toHaveBeenCalled();
     expect(panel.hidden).toBe(false); // still open — nothing happened
   });
@@ -115,6 +116,20 @@ describe("the integration points: onOpenHistory and onOpenScoreView", () => {
     scoreView.click();
 
     expect(onOpenScoreView).toHaveBeenCalledTimes(1);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it("clicking 'User preferences' calls onOpenPreferences and closes the menu", () => {
+    const onOpenPreferences = vi.fn();
+    const { button, panel } = mount(vi.fn(), vi.fn(), onOpenPreferences);
+    button.click();
+
+    const preferences = Array.from(panel.querySelectorAll("button")).find(
+      (b) => b.textContent === "User preferences",
+    )!;
+    preferences.click();
+
+    expect(onOpenPreferences).toHaveBeenCalledTimes(1);
     expect(panel.hidden).toBe(true);
   });
 });

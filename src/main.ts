@@ -19,6 +19,7 @@ import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
 import { loadGame, saveGame } from "./persistence/persistence";
+import { loadPreferences, savePreferences } from "./persistence/preferences";
 import {
   recordAttempt,
   statusFromGameState,
@@ -33,6 +34,7 @@ import { newStartOverButton } from "./startover/startover";
 import { newHistoryView } from "./historyview/historyview";
 import { newScoreView } from "./scoreview/scoreview";
 import { newUserMenu } from "./usermenu/usermenu";
+import { newPreferences } from "./preferences/preferences";
 import { newHelpOverlay, newHelpButton } from "./help/help";
 
 const app = document.querySelector("#app")!;
@@ -212,9 +214,16 @@ async function main(): Promise<void> {
   });
   app.append(scoreView.html);
 
+  const preferences = newPreferences({
+    initial: loadPreferences(),
+    onChange: savePreferences,
+  });
+  app.append(preferences.html);
+
   const userMenu = newUserMenu({
     onOpenHistory: () => historyView.open(),
     onOpenScoreView: () => scoreView.open(),
+    onOpenPreferences: () => preferences.open(),
   });
   aboveBoardRowRight.append(userMenu.html);
 
@@ -252,6 +261,7 @@ async function main(): Promise<void> {
       difficulty,
       saved?.seed ?? seed,
       controller.signal,
+      () => preferences.get().autoEliminate,
     );
     aboveBoardRowCenter.append(board.htmlHud);
     undoButton = board.undoButton;
@@ -345,19 +355,6 @@ async function main(): Promise<void> {
     const isAnyDialogOpen = () =>
       options.html.open || gameOver.html.open || helpOverlay.html.open;
 
-    // Wire up keyboard navigation (called here, not inside newBoard, so we have
-    // access to the dialog state that was constructed in main.ts)
-    attachKeyboardNavigation(
-      board.htmlBoard,
-      board.state,
-      board.game,
-      isAnyDialogOpen,
-      {
-        onHelp: () => helpOverlay.open(),
-        undo: board.undo,
-      },
-    );
-
     startPregeneration({ playingSize: size, difficulty });
 
     const maxGuesses = maxGuessesFor(size, difficulty);
@@ -402,6 +399,21 @@ async function main(): Promise<void> {
               ),
       });
     };
+
+    // Wire up keyboard navigation (called here, not inside newBoard, so we have
+    // access to the dialog state that was constructed in main.ts and the persist
+    // function defined just above)
+    attachKeyboardNavigation(
+      board.htmlBoard,
+      board.state,
+      board.game,
+      isAnyDialogOpen,
+      {
+        onHelp: () => helpOverlay.open(),
+        undo: board.undo,
+        onCommit: persist,
+      },
+    );
 
     board.game.onEnd((state) => {
       timer.stop();

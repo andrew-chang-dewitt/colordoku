@@ -62,6 +62,12 @@ export interface UserMenuConfig {
    * `ScoreView.open()`) — displays cumulative score tracking by week.
    */
   onOpenScoreView: () => void;
+  /**
+   * Opens the user preferences drawer (src/preferences/preferences.ts's
+   * `Preferences.open()`) — allows toggling auto-eliminate and other
+   * cross-session settings.
+   */
+  onOpenPreferences: () => void;
 }
 
 export interface UserMenu {
@@ -80,7 +86,7 @@ export interface UserMenu {
   dispose: () => void;
 }
 
-export function newUserMenu({ onOpenHistory, onOpenScoreView }: UserMenuConfig): UserMenu {
+export function newUserMenu({ onOpenHistory, onOpenScoreView, onOpenPreferences }: UserMenuConfig): UserMenu {
   let open = false;
 
   const wrapper = document.createElement("div");
@@ -140,12 +146,14 @@ export function newUserMenu({ onOpenHistory, onOpenScoreView }: UserMenuConfig):
     onOpenScoreView();
   });
 
-  // Neither has anything built yet to link to — real, fully-shaped menu
-  // items (so the menu isn't visually missing pieces) rather than wired to
-  // placeholder behavior. "Leaderboard (if opted in)" per the README TODO:
-  // there's no opt-in mechanism yet either, so it's unconditionally disabled
-  // for now rather than guessing at what "opted in" should check.
-  menuItem("User preferences", { disabled: true });
+  const preferencesItem = menuItem("User preferences");
+  preferencesItem.addEventListener("click", () => {
+    setOpen(false);
+    onOpenPreferences();
+  });
+
+  // Leaderboard still disabled — there's no opt-in mechanism yet, so it's
+  // unconditionally disabled for now per the README TODO.
   menuItem("Leaderboard", { disabled: true });
 
   function setOpen(next: boolean): void {
