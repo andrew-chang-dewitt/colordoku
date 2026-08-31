@@ -1,6 +1,6 @@
 import "./style.css";
 import type { Board } from "./board/board";
-import { newBoard, attachKeyboardNavigation } from "./board/board";
+import { newBoard, attachKeyboardNavigation, maxGuessesFor } from "./board/board";
 import { SLOW_SIZE, preload } from "./board/generate";
 import type { Difficulty } from "./options/options";
 import { newOptions, goToSize, startOver, isDifficulty, DEFAULT_DIFFICULTY } from "./options/options";
@@ -8,7 +8,13 @@ import { newTimer } from "./timer/timer";
 import { newGameOver } from "./gameover/gameover";
 import type { SavedGame } from "./persistence/persistence";
 import { loadGame, saveGame } from "./persistence/persistence";
-import { recordAttempt, statusFromGameState, getHistory } from "./persistence/history";
+import {
+  recordAttempt,
+  statusFromGameState,
+  getHistory,
+  currentAttemptNumber,
+  latestAttemptFor,
+} from "./persistence/history";
 import { computeScore } from "./persistence/score";
 import { weeklyScoreTotal, currentWeekBounds } from "./persistence/weeklyScore";
 import { buildShareUrl, newShareButton } from "./share/share";
@@ -308,6 +314,9 @@ async function main(): Promise<void> {
       onHelp: () => helpOverlay.open(),
     });
 
+    const maxGuesses = maxGuessesFor(size, difficulty);
+    const wrongGuessesFrom = (guessesLeft: number): number => maxGuesses - guessesLeft;
+
     // Checkpoints both SavedGame (single-slot "resume where I left off") and
     // this attempt's history entry (see persistence/history.ts) on the same
     // cadence — every cell interaction plus the two "player might be about
@@ -336,7 +345,14 @@ async function main(): Promise<void> {
         score:
           status === "playing"
             ? null
-            : computeScore(board.game.size, difficulty, timer.elapsedMs(), status),
+            : computeScore(
+                board.game.size,
+                difficulty,
+                timer.elapsedMs(),
+                status,
+                currentAttemptNumber(board.game.size, board.seed),
+                wrongGuessesFrom(board.game.guessesLeft),
+              ),
       });
     };
 
@@ -344,7 +360,14 @@ async function main(): Promise<void> {
       timer.stop();
       const elapsedMs = timer.elapsedMs();
       const statusForScore = state === 1 ? "won" : "lost";
-      const score = computeScore(size, difficulty, elapsedMs, statusForScore);
+      const score = computeScore(
+        size,
+        difficulty,
+        elapsedMs,
+        statusForScore,
+        currentAttemptNumber(size, board.seed),
+        wrongGuessesFrom(board.game.guessesLeft),
+      );
       // Game over; the timer will never run again on this page, so drop its
       // visibilitychange listener rather than leaving it dangling until a
       // full page navigation cleans it up.
@@ -371,7 +394,15 @@ async function main(): Promise<void> {
       // onEnd above: nothing in progress to offer "Start over" on.
       startOverBtn.hidden = true;
       const statusForScore = saved.gameState === 1 ? "won" : "lost";
-      const score = computeScore(size, difficulty, saved.elapsedMs, statusForScore);
+      const priorAttempt = latestAttemptFor(size, saved.seed)?.attempt ?? 1;
+      const score = computeScore(
+        size,
+        difficulty,
+        saved.elapsedMs,
+        statusForScore,
+        priorAttempt,
+        wrongGuessesFrom(saved.guessesLeft),
+      );
       // No fresh persist() needed here — this game already ended and was
       // recorded in a prior session, so its score is already in history.
       const weeklyScore = weeklyScoreTotal(getHistory(), currentWeekBounds());

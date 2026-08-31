@@ -347,6 +347,28 @@ function keyFor(size: number, seed: number): string {
 }
 
 /**
+ * Resolves which entry (if any) is the current attempt for the given board.
+ * Returns the index of the entry in the provided list, or -1 if none found.
+ *
+ * First checks the session cache (currentAttemptId) for speed; if that misses,
+ * falls back to finding an existing entry with status "playing" matching the
+ * size and seed. This fallback handles the case where a page is reloaded while
+ * an attempt is mid-play (the cache is fresh on each load, but history entries
+ * persist).
+ */
+function resolveAttemptIndex(entries: HistoryEntry[], size: number, seed: number): number {
+  const key = keyFor(size, seed);
+  const cachedId = currentAttemptId.get(key);
+  let index = cachedId === undefined ? -1 : entries.findIndex((e) => e.id === cachedId);
+  if (index === -1) {
+    index = entries.findIndex(
+      (e) => e.size === size && e.seed === seed && e.status === "playing",
+    );
+  }
+  return index;
+}
+
+/**
  * Set once closeOutInProgress() has run, for the rest of this page's life —
  * mirrors persistence.ts's `abandoned` flag and closes the exact same race
  * it does: goToSize() calls closeOutInProgress() then abandonGame() then
@@ -403,13 +425,7 @@ export function recordAttempt(
   const now = Date.now();
   const key = keyFor(size, seed);
 
-  const cachedId = currentAttemptId.get(key);
-  let index = cachedId === undefined ? -1 : entries.findIndex((e) => e.id === cachedId);
-  if (index === -1) {
-    index = entries.findIndex(
-      (e) => e.size === size && e.seed === seed && e.status === "playing",
-    );
-  }
+  let index = resolveAttemptIndex(entries, size, seed);
 
   if (index !== -1) {
     const existing = entries[index];
@@ -494,6 +510,37 @@ export function getHistory(): HistoryEntry[] {
   return loadAll()
     .slice()
     .sort((a, b) => b.startedAt - a.startedAt);
+}
+
+/**
+ * Returns the 1-indexed attempt number the next `recordAttempt()` call for
+ * this (size, seed) would write. If an attempt is currently in progress on
+ * this page, returns its existing attempt number (so a score computed before
+ * the entry is persisted matches what was recorded). If no attempt is in
+ * progress, returns (number of existing attempts for this board) + 1.
+ *
+ * Used in main.ts to compute a score before persisting it, ensuring the
+ * score uses the correct attempt number even though the history entry hasn't
+ * been written yet.
+ */
+export function currentAttemptNumber(size: number, seed: number): number {
+  const entries = loadAll();
+  const index = resolveAttemptIndex(entries, size, seed);
+  if (index !== -1) return entries[index].attempt;
+  return entries.filter((e) => e.size === size && e.seed === seed).length + 1;
+}
+
+/**
+ * Returns the most recently updated entry for this (size, seed), or null if
+ * this board has never been played. Used for scoring an already-finished
+ * attempt resumed from a prior session, where currentAttemptNumber() would
+ * incorrectly report the next (not-yet-started) attempt since the cache is
+ * empty on a fresh page load.
+ */
+export function latestAttemptFor(size: number, seed: number): HistoryEntry | null {
+  const matches = loadAll().filter((e) => e.size === size && e.seed === seed);
+  if (matches.length === 0) return null;
+  return matches.reduce((newest, e) => (e.updatedAt > newest.updatedAt ? e : newest));
 }
 
 /** Clears all stored history. Exported for tests and any future "clear my history" action. */

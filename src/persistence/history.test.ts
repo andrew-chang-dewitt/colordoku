@@ -4,7 +4,9 @@ import type { SavedGame } from "./persistence";
 import {
   clearHistory,
   closeOutInProgress,
+  currentAttemptNumber,
   getHistory,
+  latestAttemptFor,
   recordAttempt,
   resetSessionForTests,
   statusFromGameState,
@@ -177,6 +179,109 @@ describe("closeOutInProgress", () => {
     const entries = getHistory();
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ status: "abandoned", elapsedMs: 7777 });
+  });
+});
+
+describe("currentAttemptNumber", () => {
+  it("returns 1 for a board with no history at all", () => {
+    expect(currentAttemptNumber(4, 111)).toBe(1);
+  });
+
+  it("returns the in-progress entry's own number while playing", () => {
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    expect(currentAttemptNumber(4, 111)).toBe(1);
+
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    resetSessionForTests();
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    expect(currentAttemptNumber(4, 111)).toBe(2);
+  });
+
+  it("after a session reset still adopts the playing entry rather than incrementing", () => {
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    resetSessionForTests();
+    // Still within session 1, no new attempt created
+    expect(currentAttemptNumber(4, 111)).toBe(1);
+  });
+
+  it("returns n+1 once every entry for that board is finalized (won/lost/abandoned)", () => {
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    resetSessionForTests();
+    expect(currentAttemptNumber(4, 111)).toBe(2);
+  });
+
+  it("agrees with what recordAttempt actually writes next", () => {
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    resetSessionForTests();
+
+    const n = currentAttemptNumber(4, 111);
+    expect(n).toBe(2); // Confirms currentAttemptNumber works correctly
+
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+
+    const entries = getHistory().filter((e) => e.size === 4 && e.seed === 111);
+    // After recording attempt 2, we should have 2 total entries for this board
+    expect(entries).toHaveLength(2);
+    const attempt2 = entries.find((e) => e.attempt === 2);
+    expect(attempt2).toBeDefined();
+  });
+
+  it("is unaffected by another board's entries (different size or seed)", () => {
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    recordAttempt(6, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    recordAttempt(4, 222, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    resetSessionForTests();
+
+    // Board (4, 111) had 1 attempt; should report 2 for the next one.
+    // Other boards don't affect this count.
+    expect(currentAttemptNumber(4, 111)).toBe(2);
+  });
+});
+
+describe("latestAttemptFor", () => {
+  it("returns null for an unknown board", () => {
+    expect(latestAttemptFor(4, 111)).toBeNull();
+  });
+
+  it("returns the entry with the greatest updatedAt when several attempts exist", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    resetSessionForTests();
+
+    vi.setSystemTime(2000);
+    recordAttempt(4, 111, { status: "playing", elapsedMs: 0, difficulty: "medium" });
+
+    vi.setSystemTime(3000);
+    recordAttempt(4, 111, { status: "lost", elapsedMs: 10000, difficulty: "medium" });
+
+    const latest = latestAttemptFor(4, 111);
+    expect(latest).not.toBeNull();
+    expect(latest!.attempt).toBe(2);
+    expect(latest!.status).toBe("lost");
+
+    vi.useRealTimers();
+  });
+
+  it("ignores other boards", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    recordAttempt(4, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+    recordAttempt(6, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+
+    vi.setSystemTime(2000);
+    recordAttempt(6, 111, { status: "won", elapsedMs: 5000, difficulty: "medium" });
+
+    // (6, 111) was updated more recently, but we're only asking about (4, 111)
+    const latest = latestAttemptFor(4, 111);
+    expect(latest).not.toBeNull();
+    expect(latest!.size).toBe(4);
+    expect(latest!.seed).toBe(111);
+
+    vi.useRealTimers();
   });
 });
 

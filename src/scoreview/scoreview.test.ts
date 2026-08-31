@@ -39,21 +39,28 @@ describe("newScoreView", () => {
   });
 
   it("shows the weekly and all-time score totals in a summary line", () => {
+    vi.useFakeTimers();
     const mondayStart = new Date(2026, 7, 24, 0, 0, 0).getTime();
-    const entries = [
-      entry({ startedAt: mondayStart + 1000, score: 100, status: "won" }),
-      entry({ startedAt: mondayStart + 2000, score: 200, status: "won" }),
-      entry({ startedAt: mondayStart - 10000, score: 50, status: "won" }), // previous week
-    ];
-    const { view } = mount(entries);
-    view.open();
+    // Set system time to within the Aug 24-30 week (Aug 25 at noon)
+    vi.setSystemTime(new Date(2026, 7, 25, 12, 0, 0));
+    try {
+      const entries = [
+        entry({ startedAt: mondayStart + 1000, score: 100, status: "won" }),
+        entry({ startedAt: mondayStart + 2000, score: 200, status: "won" }),
+        entry({ startedAt: mondayStart - 10000, score: 50, status: "won" }), // previous week
+      ];
+      const { view } = mount(entries);
+      view.open();
 
-    const summaryDiv = Array.from(view.html.querySelectorAll("div")).find((d) =>
-      d.textContent?.includes("This week:"),
-    );
-    expect(summaryDiv).toBeDefined();
-    expect(summaryDiv?.textContent).toContain("This week: 300");
-    expect(summaryDiv?.textContent).toContain("All-time: 350");
+      const summaryDiv = Array.from(view.html.querySelectorAll("div")).find((d) =>
+        d.textContent?.includes("This week:"),
+      );
+      expect(summaryDiv).toBeDefined();
+      expect(summaryDiv?.textContent).toContain("This week: 300");
+      expect(summaryDiv?.textContent).toContain("All-time: 350");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("groups entries by week and shows newest week first in the list below the chart", () => {
