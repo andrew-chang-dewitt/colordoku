@@ -23,7 +23,7 @@ import { newStartOverButton } from "./startover/startover";
 import { newHistoryView } from "./historyview/historyview";
 import { newScoreView } from "./scoreview/scoreview";
 import { newUserMenu } from "./usermenu/usermenu";
-import { newHelpOverlay } from "./help/help";
+import { newHelpOverlay, newHelpButton } from "./help/help";
 
 const app = document.querySelector("#app")!;
 
@@ -273,6 +273,9 @@ async function main(): Promise<void> {
         buildShareUrl(size, board.seed, location.origin, location.pathname, difficulty),
     });
     aboveBoardRowLeft.append(share.html);
+
+    const helpButton = newHelpButton(() => helpOverlay.open());
+    aboveBoardRowLeft.append(helpButton);
 
     // "Start over": resets progress on this exact board (same seed) rather
     // than picking a different one, distinct from both "New game" entry

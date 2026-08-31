@@ -525,6 +525,9 @@ html {
 
 #above-board-left {
   grid-area: left;
+  display: flex;
+  gap: var(--layout-gap);
+  align-items: start;
 }
 #above-board-center {
   grid-area: center;

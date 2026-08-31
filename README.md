@@ -206,7 +206,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] confirm starting over
   - [x] fix placement (now inline w/ new game button in the same `#below-board`
         row)
-- [ ] #help help button to view game rules & some strategy tips
+- [x] #help help button to view game rules & some strategy tips
 - [ ] #help skippable new user tutorial via a guided first game where modals
       appear pointing to cells/regions/UI elements explaining the following things:
   - [ ] first: how to access user profile & mentioning that's where to go to
