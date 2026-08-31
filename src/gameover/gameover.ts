@@ -83,7 +83,6 @@ export function newGameOver({
       `I solved a ${shareSize}x${shareSize} Colordoku in ${formatElapsed(
         shareElapsedMs
       )} — score ${shareScore}!`,
-    iconOnly: true,
   });
 
   const summaryRow = document.createElement("div");

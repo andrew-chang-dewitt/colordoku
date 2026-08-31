@@ -31,11 +31,10 @@ export interface ShareButtonConfig {
   getUrl: () => string;
   title?: string;
   text?: string | (() => string);
-  iconOnly?: boolean;
 }
 
 export interface ShareButton {
-  html: HTMLButtonElement;
+  html: HTMLElement;
 }
 
 /**
@@ -53,22 +52,25 @@ export function newShareButton({
   getUrl,
   title = "Colordoku",
   text = "Play this Colordoku board with me",
-  iconOnly = false,
 }: ShareButtonConfig): ShareButton {
-  const DEFAULT_LABEL = "Share";
+  // Wrapper container for the button and flash message, positioned relatively
+  // so the flash message can be absolutely positioned below the button.
+  const container = document.createElement("div");
+  container.style.position = "relative";
+  container.style.display = "inline-block";
 
-  const html = document.createElement("button");
-  html.type = "button";
-  html.className = `btn btn-secondary`;
-  html.setAttribute("aria-label", title);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `btn btn-secondary`;
+  button.setAttribute("aria-label", title);
 
   // The classic iOS share glyph (an arrow pointing up out of an open-top
   // tray) — user-picked from three candidates (iOS box+arrow, Material
   // three-nodes, arrow-out-of-a-box). Plain inline SVG, no icon font/library:
   // this app has no dependency for one. `stroke="currentColor"` picks up
   // .btn-secondary's text color automatically in both themes, so it needs no
-  // color of its own. Decorative only (aria-hidden) — the "Share" label
-  // right next to it already says what the button does.
+  // color of its own. Decorative only (aria-hidden) — the aria-label
+  // attribute already says what the button does for accessibility.
   const icon = document.createElement("span");
   icon.setAttribute("aria-hidden", "true");
   icon.style.display = "inline-flex";
@@ -78,36 +80,35 @@ export function newShareButton({
     '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M12 16V4"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>' +
     "</svg>";
-  html.append(icon);
+  button.append(icon);
+  container.append(button);
 
-  // A separate node from the icon so flash() below can swap just the text
-  // (the "Link copied!" confirmation, or the raw URL fallback) without
-  // clobbering the icon — button.textContent still reads as just this
-  // span's text either way, since the bare <svg> above contributes no text
-  // nodes of its own.
-  const labelSpan = document.createElement("span");
-  labelSpan.textContent = DEFAULT_LABEL;
-  if (iconOnly) {
-    labelSpan.style.display = "none";
-  }
-  html.append(labelSpan);
+  // Button is now icon-only; a separate flash message element positioned
+  // below the button shows confirmations ("Link copied!" or the raw URL
+  // fallback) instead of swapping text inside the button itself.
+  const flashMessage = document.createElement("div");
+  flashMessage.style.display = "none";
+  flashMessage.style.position = "absolute";
+  flashMessage.style.top = "100%";
+  flashMessage.style.left = "50%";
+  flashMessage.style.transform = "translateX(-50%)";
+  flashMessage.style.fontSize = "0.875rem";
+  flashMessage.style.whiteSpace = "nowrap";
+  flashMessage.style.marginTop = "0.5em";
+  flashMessage.style.color = "var(--color-on-surface)";
+  container.append(flashMessage);
 
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Swaps the button's label to `message` for `ms`, then restores it — the confirmation itself. */
+  /** Shows a message below the button for `ms`, then hides it — the confirmation itself. */
   function flash(message: string, ms: number): void {
     if (resetTimer !== null) clearTimeout(resetTimer);
-    labelSpan.textContent = message;
-    if (iconOnly) {
-      labelSpan.style.display = "";
-    }
-    html.disabled = true;
+    flashMessage.textContent = message;
+    flashMessage.style.display = "block";
+    button.disabled = true;
     resetTimer = setTimeout(() => {
-      labelSpan.textContent = DEFAULT_LABEL;
-      if (iconOnly) {
-        labelSpan.style.display = "none";
-      }
-      html.disabled = false;
+      flashMessage.style.display = "none";
+      button.disabled = false;
       resetTimer = null;
     }, ms);
   }
@@ -155,9 +156,9 @@ export function newShareButton({
     await copyToClipboard(url);
   }
 
-  html.addEventListener("click", () => {
+  button.addEventListener("click", () => {
     void share();
   });
 
-  return { html };
+  return { html: container };
 }

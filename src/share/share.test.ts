@@ -62,10 +62,12 @@ describe("newShareButton", () => {
     if (navigator.clipboard) navigator.clipboard.writeText = originalWriteText;
   });
 
-  it("renders with the default label", () => {
+  it("renders as an icon-only button in a container", () => {
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
-    expect(html.textContent).toBe("Share");
-    expect(html.tagName).toBe("BUTTON");
+    expect(html.tagName).toBe("DIV");
+    const button = html.querySelector("button");
+    expect(button).not.toBeNull();
+    expect(button?.getAttribute("aria-label")).toBe("Colordoku");
   });
 
   it("calls navigator.share with the URL when available", async () => {
@@ -73,7 +75,8 @@ describe("newShareButton", () => {
     navigator.share = shareSpy;
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(shareSpy).toHaveBeenCalledTimes(1));
 
     expect(shareSpy.mock.calls[0][0]).toMatchObject({ url: "https://example.com/?size=4&board-id=1" });
@@ -85,11 +88,14 @@ describe("newShareButton", () => {
     const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText");
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(navigator.share).toHaveBeenCalledTimes(1));
 
     expect(writeTextSpy).not.toHaveBeenCalled();
-    expect(html.textContent).toBe("Share"); // no confirmation flash, no error shown
+    // no confirmation flash shown, flash message div remains hidden
+    const flashMessage = html.querySelector("div:last-of-type") as HTMLDivElement;
+    expect(flashMessage?.style.display).toBe("none");
   });
 
   it("falls back to clipboard copy when navigator.share fails for a reason other than cancellation", async () => {
@@ -97,7 +103,8 @@ describe("newShareButton", () => {
     const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalledWith("https://example.com/?size=4&board-id=1"));
   });
 
@@ -106,17 +113,19 @@ describe("newShareButton", () => {
     const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalledWith("https://example.com/?size=4&board-id=1"));
     await vi.waitFor(() => expect(html.textContent).toBe("Link copied!"));
-    expect(html.disabled).toBe(true);
+    expect(button.disabled).toBe(true);
   });
 
   it("shows the link itself when the Clipboard API write is rejected (e.g. permission denied)", async () => {
     vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("permission denied"));
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(html.textContent).toBe("https://example.com/?size=4&board-id=1"));
   });
 
@@ -125,7 +134,8 @@ describe("newShareButton", () => {
     Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
     const { html } = newShareButton({ getUrl: () => "https://example.com/?size=4&board-id=1" });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(html.textContent).toBe("https://example.com/?size=4&board-id=1"));
 
     Object.defineProperty(navigator, "clipboard", { value: original, configurable: true });
@@ -136,38 +146,40 @@ describe("newShareButton", () => {
     const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const { html } = newShareButton({ getUrl: () => current });
 
-    html.click();
+    const button = html.querySelector("button") as HTMLButtonElement;
+    button.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalledWith(current));
 
     current = "https://example.com/?size=8&board-id=2";
     // Wait out the first click's confirmation flash so the button is
     // clickable (not disabled) again before the second click.
-    await vi.waitFor(() => expect(html.disabled).toBe(false), { timeout: 2000 });
-    html.click();
+    await vi.waitFor(() => expect(button.disabled).toBe(false), { timeout: 2000 });
+    button.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalledWith(current));
   });
 
-  it("renders icon-only with hidden label and aria-label when iconOnly is true", async () => {
+  it("flashes a message below the button on clipboard copy", async () => {
     const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const { html } = newShareButton({
       getUrl: () => "https://example.com/?size=4&board-id=1",
       title: "Share",
-      iconOnly: true,
     });
 
-    // Check initial state: label should be hidden, aria-label present
-    const labelSpan = html.querySelector("span:last-of-type") as HTMLSpanElement;
-    expect(labelSpan?.style.display).toBe("none");
-    expect(html.getAttribute("aria-label")).toBe("Share");
+    const button = html.querySelector("button") as HTMLButtonElement;
+    const flashMessage = html.querySelector("div:last-of-type") as HTMLDivElement;
 
-    // Click and verify flash temporarily shows the label
-    html.click();
+    // Check initial state: flash message is hidden, aria-label present
+    expect(flashMessage?.style.display).toBe("none");
+    expect(button?.getAttribute("aria-label")).toBe("Share");
+
+    // Click and verify flash appears
+    button.click();
     await vi.waitFor(() => expect(writeTextSpy).toHaveBeenCalled());
-    await vi.waitFor(() => expect(html.textContent).toBe("Link copied!"));
-    expect(labelSpan?.style.display).toBe("");
+    await vi.waitFor(() => expect(flashMessage?.style.display).toBe("block"));
+    expect(flashMessage?.textContent).toBe("Link copied!");
 
-    // Wait for the flash to complete and verify label is hidden again
-    await vi.waitFor(() => expect(html.disabled).toBe(false), { timeout: 2000 });
-    expect(labelSpan?.style.display).toBe("none");
+    // Wait for the flash to complete and verify it's hidden again
+    await vi.waitFor(() => expect(button?.disabled).toBe(false), { timeout: 2000 });
+    expect(flashMessage?.style.display).toBe("none");
   });
 });
