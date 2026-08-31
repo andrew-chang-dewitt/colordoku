@@ -1,24 +1,51 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildShareUrl, newShareButton } from "./share";
+import { isDifficulty } from "../options/options";
 
 describe("buildShareUrl", () => {
-  it("encodes size and board-id as query params reproducing this exact board", () => {
-    expect(buildShareUrl(4, 12345, "https://example.com", "/")).toBe(
-      "https://example.com/?size=4&board-id=12345",
+  it("encodes size, board-id, and difficulty as query params reproducing this exact board", () => {
+    expect(buildShareUrl(4, 12345, "https://example.com", "/", "medium")).toBe(
+      "https://example.com/?size=4&board-id=12345&difficulty=medium",
     );
   });
 
   it("preserves a non-root pathname", () => {
-    expect(buildShareUrl(8, 999, "https://example.com", "/colordoku/")).toBe(
-      "https://example.com/colordoku/?size=8&board-id=999",
+    expect(buildShareUrl(8, 999, "https://example.com", "/colordoku/", "hard")).toBe(
+      "https://example.com/colordoku/?size=8&board-id=999&difficulty=hard",
     );
   });
 
   it("round-trips through URLSearchParams the same way main.ts reads it back", () => {
-    const url = buildShareUrl(6, 4294967295, "https://example.com", "/");
+    const url = buildShareUrl(6, 4294967295, "https://example.com", "/", "easy");
     const parsed = new URL(url);
     expect(parsed.searchParams.get("size")).toBe("6");
     expect(parsed.searchParams.get("board-id")).toBe("4294967295");
+    expect(parsed.searchParams.get("difficulty")).toBe("easy");
+  });
+
+  it("includes all three difficulty values verbatim in the built URL", () => {
+    expect(buildShareUrl(4, 123, "https://example.com", "/", "easy")).toContain("difficulty=easy");
+    expect(buildShareUrl(4, 123, "https://example.com", "/", "medium")).toContain("difficulty=medium");
+    expect(buildShareUrl(4, 123, "https://example.com", "/", "hard")).toContain("difficulty=hard");
+  });
+
+  it("round-trips difficulty through URL parsing and back", () => {
+    const difficulties = ["easy", "medium", "hard"] as const;
+    for (const difficulty of difficulties) {
+      const url = buildShareUrl(4, 123, "https://example.com", "/", difficulty);
+      const parsed = new URL(url);
+      expect(parsed.searchParams.get("difficulty")).toBe(difficulty);
+    }
+  });
+
+  it("produces difficulty values that pass isDifficulty validation", () => {
+    const difficulties = ["easy", "medium", "hard"] as const;
+    for (const difficulty of difficulties) {
+      const url = buildShareUrl(4, 123, "https://example.com", "/", difficulty);
+      const parsed = new URL(url);
+      const difficultyParam = parsed.searchParams.get("difficulty");
+      expect(isDifficulty(difficultyParam)).toBe(true);
+    }
   });
 });
 

@@ -318,7 +318,7 @@ export function newHistoryView({
     actions.append(playAgain);
 
     const share = newShareButton({
-      getUrl: () => buildShareUrl(entry.size, entry.seed, location.origin, location.pathname),
+      getUrl: () => buildShareUrl(entry.size, entry.seed, location.origin, location.pathname, entry.difficulty),
     });
     actions.append(share.html);
 

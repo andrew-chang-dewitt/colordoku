@@ -1,20 +1,27 @@
+import type { Difficulty } from "../options/options";
+
 /**
  * Builds the link that reproduces this exact board: `?size=` picks the grid
  * size, `?board-id=` pins the seed so generation resolves single-worker and
  * deterministic (see src/board/generate.ts's doc comments on generateCells)
- * instead of racing several candidates and keeping whichever wins. Pure and
- * independent of `window.location` — the caller passes origin/pathname in —
- * so it's testable without a browser.
+ * instead of racing several candidates and keeping whichever wins, and
+ * `?difficulty=` pins the difficulty the board is played under (difficulty
+ * affects both max guesses and score multiplier, so a shared board played at
+ * a different difficulty is a different challenge). Pure and independent of
+ * `window.location` — the caller passes origin/pathname in — so it's testable
+ * without a browser.
  */
 export function buildShareUrl(
   size: number,
   boardId: number,
   origin: string,
   pathname: string,
+  difficulty: Difficulty,
 ): string {
   const params = new URLSearchParams({
     size: String(size),
     "board-id": String(boardId),
+    difficulty,
   });
   return `${origin}${pathname}?${params.toString()}`;
 }

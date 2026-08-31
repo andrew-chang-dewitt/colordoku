@@ -262,7 +262,7 @@ async function main(): Promise<void> {
     // link, so a link that only sometimes works isn't worth showing.
     const share = newShareButton({
       getUrl: () =>
-        buildShareUrl(size, board.seed, location.origin, location.pathname),
+        buildShareUrl(size, board.seed, location.origin, location.pathname, difficulty),
     });
     aboveBoardRowLeft.append(share.html);
 
@@ -294,7 +294,7 @@ async function main(): Promise<void> {
       onChangeOptions: () => options.open({ dismissable: true }),
       onTryAgain: () => startOver(size, board.seed, difficulty),
       getShareUrl: () =>
-        buildShareUrl(size, board.seed, location.origin, location.pathname),
+        buildShareUrl(size, board.seed, location.origin, location.pathname, difficulty),
     });
     app.append(gameOver.html);
 
