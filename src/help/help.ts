@@ -132,6 +132,7 @@ export function newHelpOverlay(config?: HelpConfig): HelpOverlay {
     { keys: "→ D L", action: "Move right" },
     { keys: "X", action: "Toggle elimination mark" },
     { keys: "Q", action: "Commit guess" },
+    { keys: "Ctrl + Z", action: "Undo last mark (not guesses)" },
     { keys: "Shift + Direction", action: "Select a range" },
     { keys: "?", action: "Show this help" },
   ];

@@ -63,6 +63,24 @@ export interface Cell {
    * for paint flushing (see commitGuess's comment).
    */
   commit: () => void;
+  /**
+   * Called immediately *before* a mark/unmark actually changes this cell's
+   * state (0 <-> 1), with the state it is changing *from*. Installed by
+   * src/undo/undo.ts's newUndoStack so a free elimination mark can be undone.
+   *
+   * Deliberately fired only from toggle()/mark(): a committed guess — queen
+   * found or wrong guess — is permanent and must never be undoable, and
+   * commitGuess() sets state directly rather than going through either of
+   * those, so it can never reach this hook.
+   */
+  onMark?: (previous: 0 | 1) => void;
+  /**
+   * Called the moment this cell becomes frozen (a committed guess, or a
+   * restored save that was already frozen), so the undo stack can drop every
+   * entry referencing it — e.g. the mark made by the *first* click of a
+   * double-click that then committed on this same cell.
+   */
+  onFreeze?: () => void;
 }
 
 export function newCell(
@@ -73,7 +91,7 @@ export function newCell(
   const state = 0 as State;
   const frozen = false;
   const html = renderCell(state, group);
-  const cell = {
+  const cell: Cell = {
     group,
     state,
     queen,
@@ -95,10 +113,12 @@ export function newCell(
         this.html.className += ` ${classes.error}`;
       }
       this.update();
+      if (frozen) this.onFreeze?.();
     },
 
     mark(state: 0 | 1) {
       if (this.frozen) return;
+      if (this.state !== state) this.onMark?.(this.state === 1 ? 1 : 0);
       this.state = state;
       this.update();
     },
@@ -119,12 +139,14 @@ export function newCell(
   let lastClickAt = -Infinity;
 
   function toggleMark(): void {
+    const previous = cell.state as 0 | 1;
     if (cell.state == 0) {
       cell.state = 1;
     } else if (cell.state == 1) {
       cell.state = 0;
     }
 
+    cell.onMark?.(previous);
     cell.update();
   }
 
@@ -138,6 +160,7 @@ export function newCell(
     }
 
     cell.frozen = true;
+    cell.onFreeze?.();
     cell.update();
 
     // Defer game.incFound()/incGuess() — game.onEnd's listeners (main.ts) can

@@ -4,6 +4,8 @@ import { newGame } from "../game/game";
 import { generateCells } from "./generate";
 import { takePregeneratedCells } from "./pregenerate";
 import type { Difficulty } from "../options/options";
+import type { UndoStack } from "../undo/undo";
+import { newUndoStack, newUndoButton } from "../undo/undo";
 
 export interface Board {
   state: Cell[][];
@@ -12,6 +14,10 @@ export interface Board {
   game: Game;
   htmlBoard: HTMLDivElement;
   htmlHud: HTMLDivElement;
+  /** Session-only undo stack for elimination marks (never guesses). */
+  undo: UndoStack;
+  /** The undo button — not mounted here; main.ts places it beside "Start over". */
+  undoButton: HTMLButtonElement;
 }
 
 /** Scales a size-only baseline guess count per difficulty tier; see docs/plans/board-generation-difficulty.md. */
@@ -216,6 +222,7 @@ export interface Anchor {
 export function attachRangeGestures(
   board: HTMLDivElement,
   cells: Cell[][],
+  undo?: UndoStack,
 ): () => void {
   const coordOf = new Map<HTMLElement, Coord>();
   cells.forEach((row, r) =>
@@ -264,6 +271,7 @@ export function attachRangeGestures(
 
     return {
       begin(hit: { coord: Coord; cell: Cell } | null): void {
+        undo?.begin();
         start = hit;
         moved = false;
         marked.clear();
@@ -308,6 +316,7 @@ export function attachRangeGestures(
       },
       /** Ends the session; returns true if real movement happened (so the caller should suppress the trailing click/tap). */
       end(): boolean {
+        undo?.end();
         const wasDrag = moved;
         target = null;
         start = null;
@@ -385,10 +394,12 @@ export function attachRangeGestures(
       }
 
       const target = anchor.value === 0 ? 1 : 0;
+      undo?.begin();
       for (const { row, col } of run) {
         const runCell = cells[row][col];
         if (!runCell.frozen) runCell.mark(target);
       }
+      undo?.end();
 
       // Rolls the anchor forward to the cell just clicked, so a third
       // shift+click (still holding Shift) extends into a new range from
@@ -545,7 +556,7 @@ export function attachKeyboardNavigation(
   cells: Cell[][],
   game: Game,
   isAnyDialogOpen: () => boolean,
-  { onHelp }: { onHelp: () => void },
+  { onHelp, undo }: { onHelp: () => void; undo?: UndoStack },
 ): () => void {
   const size = cells.length;
 
@@ -639,6 +650,14 @@ export function attachKeyboardNavigation(
       return;
     }
 
+    // Ctrl+Z / Cmd+Z - undo
+    if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
+      if (event.shiftKey) return; // no redo — leave Ctrl+Shift+Z alone
+      event.preventDefault();
+      undo?.undo();
+      return;
+    }
+
     // Movement keys
     const direction = directionFor(event.key);
     if (direction !== null) {
@@ -646,6 +665,7 @@ export function attachKeyboardNavigation(
 
       // If not holding Shift, end any active selection
       if (!event.shiftKey) {
+        undo?.end();
         keyboardSelectionAnchor = null;
         lastAppliedRange = [];
       }
@@ -659,6 +679,7 @@ export function attachKeyboardNavigation(
         if (keyboardSelectionAnchor === null) {
           const anchorCell = cells[oldCursor.row][oldCursor.col];
           if (!anchorCell.frozen) {
+            undo?.begin();
             keyboardSelectionAnchor = {
               coord: oldCursor,
               value: anchorCell.state === 1 ? 1 : 0,
@@ -724,6 +745,7 @@ export function attachKeyboardNavigation(
   function handleKeyUp(event: KeyboardEvent): void {
     // End shift+direction range selection when Shift is released
     if (event.key === "Shift") {
+      undo?.end();
       keyboardSelectionAnchor = null;
       lastAppliedRange = [];
     }
@@ -765,7 +787,8 @@ export async function newBoard(
     }),
   );
 
-  attachRangeGestures(board, cells);
+  const undo = newUndoStack(cells);
+  attachRangeGestures(board, cells, undo);
 
   // The HUD groups the guess pips with whatever sits alongside them above the
   // board (currently just the timer, appended into this div by main.ts) so
@@ -773,7 +796,18 @@ export async function newBoard(
   // as loose siblings stacked by document order.
   const hud: HTMLDivElement = document.createElement("div");
   hud.id = "hud";
-  hud.append(game.html);
+
+  const hudRow: HTMLDivElement = document.createElement("div");
+  hudRow.id = "hud-row";
+  hudRow.append(game.html);
+  hud.append(hudRow);
+
+  // Not mounted here — main.ts places it in the below-board row next to
+  // "Start over", not in the HUD.
+  const undoButton = newUndoButton(undo);
+
+  // Clear undo stack at game end
+  game.onEnd(() => undo.clear());
 
   return {
     state: cells,
@@ -781,5 +815,7 @@ export async function newBoard(
     game,
     htmlBoard: board,
     htmlHud: hud,
+    undo,
+    undoButton,
   };
 }

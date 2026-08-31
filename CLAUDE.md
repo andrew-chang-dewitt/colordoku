@@ -108,6 +108,14 @@ Most modules are factory functions, each returning an object literal holding sta
   on-button "Link copied!" flash. If the Clipboard API itself is unavailable (commonly an
   insecure, non-HTTPS context) or its permission is denied, it flashes the raw URL long
   enough to read/select by hand instead of leaving a dead button.
+- `src/undo/undo.ts` — `newUndoStack(cells)` plus `newUndoButton(undo)`: a session-only,
+  non-persisted undo stack for free elimination marks (0 ↔ 1 toggles on non-frozen cells).
+  Never undoes committed guesses — the moment a cell freezes, all undo entries referencing
+  it are removed. Uses `onMark` and `onFreeze` hooks installed on every cell to track
+  state changes. Multi-cell gestures (drag, shift+click, keyboard shift+direction) are
+  bracketed as transactions so each gesture creates one undo entry. Ctrl+Z / Cmd+Z is
+  gated by the same rules as all other keyboard input (dialogs open, game ended, form
+  field focused). See docs/plans/undo.md.
 
 `src/main.ts` wires all of the above together: it decides options-drawer-vs-board from
 `?size=`, resolves a resumable `SavedGame` for the requested size/`?board-id=`

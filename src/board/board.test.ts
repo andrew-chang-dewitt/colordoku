@@ -3,6 +3,7 @@ import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
 import { newGame } from "../game/game";
 import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, directionFor, maxGuessesFor } from "./board";
+import { newUndoStack } from "../undo/undo";
 
 // attachRangeGestures's mouse-drag handling attaches its mousemove/mouseup
 // listeners to `window` (see its doc comment for why), which — unlike DOM
@@ -20,7 +21,7 @@ let disposers: Array<() => void> = [];
  * Cells are real newCell() instances — not mocks — so the frozen guard, view
  * rendering, etc. all behave exactly as they do in the app.
  */
-function buildGrid(size: number, queens: Array<[number, number]> = []): { cells: Cell[][]; board: HTMLDivElement } {
+function buildGrid(size: number, queens: Array<[number, number]> = [], withUndo = false): { cells: Cell[][]; board: HTMLDivElement; undo?: ReturnType<typeof newUndoStack> } {
   const game = newGame(size, size); // generous guess budget; guess-commit isn't under test here
   const isQueen = (r: number, c: number) => queens.some(([qr, qc]) => qr === r && qc === c);
   const cells: Cell[][] = Array.from({ length: size }, (_, r) =>
@@ -29,8 +30,9 @@ function buildGrid(size: number, queens: Array<[number, number]> = []): { cells:
   const board = document.createElement("div");
   cells.forEach((row) => row.forEach((cell) => board.append(cell.html)));
   document.body.append(board);
-  disposers.push(attachRangeGestures(board, cells));
-  return { cells, board };
+  const undo = withUndo ? newUndoStack(cells) : undefined;
+  disposers.push(attachRangeGestures(board, cells, undo));
+  return { cells, board, undo };
 }
 
 afterEach(() => {
@@ -487,6 +489,251 @@ describe("attachKeyboardNavigation", () => {
       disposers.push(dispose);
 
       expect(cells[0][0].html.classList.contains("cursor")).toBe(true);
+    });
+  });
+});
+
+describe("Undo integration", () => {
+  function fireOn(cell: Cell, type: string, button = 0): void {
+    cell.html.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button }));
+  }
+
+  function keyDown(key: string, options: Record<string, boolean> = {}): void {
+    const event = new KeyboardEvent("keydown", {
+      key,
+      bubbles: true,
+      cancelable: true,
+      ...options,
+    });
+    document.dispatchEvent(event);
+  }
+
+  describe("mouse drag as one undo step", () => {
+    it("marks multiple cells as a single undo entry", () => {
+      const { cells, undo } = buildGrid(4, [], true);
+
+      fireOn(cells[0][0], "mousedown");
+      fireOn(cells[0][1], "mousemove");
+      fireOn(cells[0][2], "mousemove");
+      fireOn(cells[0][2], "mouseup");
+
+      expect(undo!.depth()).toBe(1);
+      undo!.undo();
+
+      expect(states(cells[0].slice(0, 3))).toEqual([0, 0, 0]);
+    });
+  });
+
+  describe("touch drag as one undo step", () => {
+    it("marks multiple cells as a single undo entry", () => {
+      const pointOf = new Map<string, HTMLElement>();
+      const { cells, board, undo } = buildGrid(4, [], true);
+
+      function place(cell: Cell, x: number, y: number): void {
+        pointOf.set(`${x},${y}`, cell.html);
+      }
+
+      function touchEvent(type: string, x: number, y: number): Event {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "touches", { value: [{ clientX: x, clientY: y }] });
+        return event;
+      }
+
+      vi.spyOn(document, "elementFromPoint").mockImplementation(
+        (x, y) => pointOf.get(`${x},${y}`) ?? null,
+      );
+
+      place(cells[0][0], 0, 0);
+      place(cells[0][1], 10, 0);
+      place(cells[0][2], 20, 0);
+
+      board.dispatchEvent(touchEvent("touchstart", 0, 0));
+      board.dispatchEvent(touchEvent("touchmove", 10, 0));
+      board.dispatchEvent(touchEvent("touchmove", 20, 0));
+      board.dispatchEvent(touchEvent("touchend", 20, 0));
+
+      expect(undo!.depth()).toBe(1);
+      undo!.undo();
+
+      expect(states(cells[0].slice(0, 3))).toEqual([0, 0, 0]);
+
+      vi.restoreAllMocks();
+    });
+  });
+
+  describe("shift+click range as one undo step", () => {
+    it("marks a range as a single undo entry", () => {
+      const { cells, undo } = buildGrid(4, [], true);
+
+      shiftClick(cells[0][0]); // anchor
+      shiftClick(cells[0][2]); // close range
+
+      expect(undo!.depth()).toBe(1);
+      undo!.undo();
+
+      expect(states(cells[0].slice(0, 3))).toEqual([0, 0, 0]);
+    });
+  });
+
+  describe("keyboard shift+direction as one undo step", () => {
+    it("marks range selection as a single undo entry", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      keyDown("ArrowRight", { shiftKey: true }); // Begin selection, move right
+      keyDown("ArrowRight", { shiftKey: true }); // Continue selection
+      keyDown("ArrowRight", { shiftKey: true }); // Continue selection
+      // Simulate Shift key release to close the transaction
+      document.dispatchEvent(new KeyboardEvent("keyup", { key: "Shift", bubbles: true }));
+
+      expect(undo!.depth()).toBe(1);
+      undo!.undo();
+
+      // The shift+direction should have marked cells along the path, all undone by one undo
+      expect(cells[0][0].state).toBe(0); // anchor cell, restored
+    });
+  });
+
+  describe("Ctrl+Z / Cmd+Z", () => {
+    it("Ctrl+Z undoes a keyboard X mark", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      keyDown("x");
+      expect(cells[0][0].state).toBe(1);
+
+      keyDown("z", { ctrlKey: true });
+      expect(cells[0][0].state).toBe(0);
+    });
+
+    it("Cmd+Z (metaKey) also works", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      keyDown("x");
+      expect(cells[0][0].state).toBe(1);
+
+      keyDown("z", { metaKey: true });
+      expect(cells[0][0].state).toBe(0);
+    });
+
+    it("Ctrl+Shift+Z does nothing (no redo)", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      keyDown("x");
+      undo!.undo();
+      expect(cells[0][0].state).toBe(0);
+
+      keyDown("z", { ctrlKey: true, shiftKey: true });
+      expect(cells[0][0].state).toBe(0); // unchanged, no redo happened
+    });
+  });
+
+  describe("Ctrl+Z gating", () => {
+    it("no-op when any dialog is open", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      let dialogOpen = false;
+      const isAnyDialogOpen = () => dialogOpen;
+      const dispose = attachKeyboardNavigation(board, cells, game, isAnyDialogOpen, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      // Record a mark while dialog is closed
+      keyDown("x");
+      expect(undo!.depth()).toBe(1);
+
+      // Now open dialog and try to undo - should be suppressed
+      dialogOpen = true;
+      keyDown("z", { ctrlKey: true });
+      expect(undo!.depth()).toBe(1); // unchanged, no undo happened
+    });
+
+    it("no-op when game.state !== 0 (game ended)", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      // Record a mark while game is in progress
+      keyDown("x");
+      expect(undo!.depth()).toBe(1);
+
+      // Now end the game and try to undo - should be suppressed
+      game.state = 1;
+      keyDown("z", { ctrlKey: true });
+      expect(undo!.depth()).toBe(1); // unchanged
+    });
+
+    it("no-op while an input has focus", () => {
+      const { cells, board, undo } = buildGrid(4, [], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      // Record a mark while no input has focus
+      keyDown("x");
+      expect(undo!.depth()).toBe(1);
+
+      // Now give an input focus and try to undo - should be suppressed
+      const input = document.createElement("input");
+      document.body.append(input);
+      input.focus();
+
+      keyDown("z", { ctrlKey: true });
+      expect(undo!.depth()).toBe(1); // unchanged
+
+      input.remove();
+    });
+  });
+
+  describe("keyboard Q (commit) is NOT undoable", () => {
+    it("pressing Q commits a guess, which cannot be undone", () => {
+      const { cells, board, undo } = buildGrid(4, [[0, 0]], true);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        undo: undo!,
+      });
+      disposers.push(dispose);
+
+      keyDown("q");
+      expect(cells[0][0].frozen).toBe(true);
+      expect(cells[0][0].state).toBe(2);
+
+      const success = undo!.undo();
+      expect(success).toBe(false);
+      expect(cells[0][0].frozen).toBe(true);
     });
   });
 });

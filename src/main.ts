@@ -233,6 +233,8 @@ async function main(): Promise<void> {
   // see it; stays undefined on a generation failure, when there's no board
   // to restart and so nothing to pair #new-game with.
   let startOverButton: HTMLButtonElement | undefined;
+  // Same deal as startOverButton — paired with it in the below-board row.
+  let undoButton: HTMLButtonElement | undefined;
 
   try {
     // A resumable save pins the seed so generation reproduces the exact same
@@ -252,6 +254,7 @@ async function main(): Promise<void> {
       controller.signal,
     );
     aboveBoardRowCenter.append(board.htmlHud);
+    undoButton = board.undoButton;
 
     mainHtml.append(board.htmlBoard);
 
@@ -287,7 +290,13 @@ async function main(): Promise<void> {
     // link, so a link that only sometimes works isn't worth showing.
     const share = newShareButton({
       getUrl: () =>
-        buildShareUrl(size, board.seed, location.origin, location.pathname, difficulty),
+        buildShareUrl(
+          size,
+          board.seed,
+          location.origin,
+          location.pathname,
+          difficulty,
+        ),
     });
     aboveBoardRowLeft.append(share.html);
 
@@ -345,6 +354,7 @@ async function main(): Promise<void> {
       isAnyDialogOpen,
       {
         onHelp: () => helpOverlay.open(),
+        undo: board.undo,
       },
     );
 
@@ -466,6 +476,11 @@ async function main(): Promise<void> {
       // persistence.ts's abandonGame() for how starting a new game avoids
       // this beforeunload handler racing that intentional abandonment.
       board.htmlBoard.addEventListener("click", persist);
+      // The undo button lives in the HUD (not inside #board) and Ctrl+Z isn't
+      // a board click either, so neither reaches the existing click-triggered
+      // persist; this explicitly re-checkpoints after an undo so the save stays
+      // in sync.
+      board.undo.onApply(persist);
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) persist();
       });
@@ -505,6 +520,9 @@ async function main(): Promise<void> {
     // generation, and hidden (not omitted) once nothing is in progress.
     if (startOverButton !== undefined) {
       belowBoardRow.append(startOverButton);
+    }
+    if (undoButton !== undefined) {
+      belowBoardRow.append(undoButton);
     }
   }
 }

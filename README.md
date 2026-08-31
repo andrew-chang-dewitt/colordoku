@@ -296,7 +296,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     needing at least 1 dedicated machine always on & connected to provide data.
     will need to investigate what that critical mass may look like & how to
     tell if it's been achieved.
-- [ ] undo button (can't undo placing queens or incorrect guesses)
+- [x] #undo undo button (can't undo placing queens or incorrect guesses) — marks only; a committed guess (queen or wrong) is permanent (plan: docs/plans/undo.md)
 - [ ] option in preferences to auto  eliminate columns, rows, & neighbors on correct queen placement (defaults to off)
 - [x] BUG: share link isn't including difficulty setting
 - [x] BUG: time to complete doesn't appear to factor onto score — a faster completion time should give a higher score than a slower one

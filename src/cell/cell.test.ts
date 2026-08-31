@@ -285,3 +285,127 @@ describe("toggle/commit (public wrappers used by X/Q keyboard handling)", () => 
     });
   });
 });
+
+describe("undo hooks (onMark and onFreeze)", () => {
+  describe("onMark", () => {
+    it("called by toggle() with previous state", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onMark = vi.fn();
+      cell.onMark = onMark;
+
+      cell.toggle(); // 0 -> 1
+      expect(onMark).toHaveBeenCalledWith(0);
+
+      cell.toggle(); // 1 -> 0
+      expect(onMark).toHaveBeenCalledWith(1);
+
+      expect(onMark).toHaveBeenCalledTimes(2);
+    });
+
+    it("called by mark() when state changes", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onMark = vi.fn();
+      cell.onMark = onMark;
+
+      cell.mark(1);
+      expect(onMark).toHaveBeenCalledWith(0);
+
+      cell.mark(0);
+      expect(onMark).toHaveBeenCalledWith(1);
+    });
+
+    it("not called when mark() is passed the cell's current state", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onMark = vi.fn();
+      cell.onMark = onMark;
+
+      cell.mark(0); // already 0
+
+      expect(onMark).not.toHaveBeenCalled();
+    });
+
+    it("not called by commit() — even for found or error", () => {
+      const game = newGame(4, 2);
+      const cell1 = newCell(game, 0, true);
+      const cell2 = newCell(game, 0, false);
+      const onMark1 = vi.fn();
+      const onMark2 = vi.fn();
+      cell1.onMark = onMark1;
+      cell2.onMark = onMark2;
+
+      cell1.commit(); // found
+      cell2.commit(); // error
+
+      expect(onMark1).not.toHaveBeenCalled();
+      expect(onMark2).not.toHaveBeenCalled();
+    });
+
+    it("not called by restore()", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onMark = vi.fn();
+      cell.onMark = onMark;
+
+      cell.restore(1, false);
+
+      expect(onMark).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("onFreeze", () => {
+    it("called by commit() for both queen and non-queen", () => {
+      const game = newGame(4, 2);
+      const cell1 = newCell(game, 0, true);
+      const cell2 = newCell(game, 0, false);
+      const onFreeze1 = vi.fn();
+      const onFreeze2 = vi.fn();
+      cell1.onFreeze = onFreeze1;
+      cell2.onFreeze = onFreeze2;
+
+      cell1.commit();
+      cell2.commit();
+
+      expect(onFreeze1).toHaveBeenCalledTimes(1);
+      expect(onFreeze2).toHaveBeenCalledTimes(1);
+    });
+
+    it("called by restore(state, true) when restoring frozen", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onFreeze = vi.fn();
+      cell.onFreeze = onFreeze;
+
+      cell.restore(1, true);
+
+      expect(onFreeze).toHaveBeenCalledTimes(1);
+    });
+
+    it("not called by restore(state, false) when restoring unfrozen", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onFreeze = vi.fn();
+      cell.onFreeze = onFreeze;
+
+      cell.restore(1, false);
+
+      expect(onFreeze).not.toHaveBeenCalled();
+    });
+
+    it("not called by mark()", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onFreeze = vi.fn();
+      cell.onFreeze = onFreeze;
+
+      cell.mark(1);
+
+      expect(onFreeze).not.toHaveBeenCalled();
+    });
+
+    it("not called by toggle()", () => {
+      const cell = newCell(newGame(4, 2), 0, false);
+      const onFreeze = vi.fn();
+      cell.onFreeze = onFreeze;
+
+      cell.toggle();
+
+      expect(onFreeze).not.toHaveBeenCalled();
+    });
+  });
+});
