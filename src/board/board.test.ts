@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
-import classes from "../cell/cell.module.css";
 import { newGame } from "../game/game";
 import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, coordsToEliminate, attachAutoEliminate, directionFor, maxGuessesFor } from "./board";
 import { newUndoStack } from "../undo/undo";
@@ -481,15 +480,93 @@ describe("attachKeyboardNavigation", () => {
     });
   });
 
-  describe("movement with clamping", () => {
-    it("starts cursor at top-left", () => {
+  describe("movement via DOM focus", () => {
+    it("moves focus with arrow keys, clamped to the grid", () => {
       const { cells, board } = buildGrid(4);
       const dispose = attachKeyboardNavigation(board, cells, newGame(4, 4), () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
       });
       disposers.push(dispose);
 
-      expect(cells[0][0].html.classList.contains(classes.cursor)).toBe(true);
+      cells[0][0].html.focus();
+      expect(document.activeElement).toBe(cells[0][0].html);
+
+      fireBoardKey(cells[0][0], "ArrowRight");
+      expect(document.activeElement).toBe(cells[0][1].html);
+
+      // clamp at top-left
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "ArrowUp");
+      fireBoardKey(cells[0][0], "ArrowLeft");
+      expect(document.activeElement).toBe(cells[0][0].html);
+    });
+  });
+
+  describe("keyboard shortcuts", () => {
+    it("Escape and M both call onLeaveBoard when a cell has focus", () => {
+      const { cells, board } = buildGrid(4);
+      const game = newGame(4, 4);
+      const onLeaveBoardSpy = vi.fn();
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        onLeaveBoard: onLeaveBoardSpy,
+      });
+      disposers.push(dispose);
+
+      cells[0][0].html.focus();
+
+      // Test Escape
+      fireBoardKey(cells[0][0], "Escape");
+      expect(onLeaveBoardSpy).toHaveBeenCalledTimes(1);
+
+      // Test M
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "m");
+      expect(onLeaveBoardSpy).toHaveBeenCalledTimes(2);
+
+      // Test uppercase M
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "M");
+      expect(onLeaveBoardSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("board-scoped keys are no-ops when dispatched while a non-cell element has focus", () => {
+      const { cells, board } = buildGrid(4);
+      const game = newGame(4, 4);
+      const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
+        onHelp: () => {},
+        onLeaveBoard: () => {},
+      });
+      disposers.push(dispose);
+
+      // Focus a plain button outside the board
+      const button = document.createElement("button");
+      document.body.append(button);
+      button.focus();
+
+      // X key should not affect any cell (no cell has focus)
+      expect(document.activeElement).toBe(button);
+      fireBoardKey(cells[0][0], "x");
+      expect(cells[0][0].state).toBe(0); // unchanged
+
+      button.remove();
+    });
+
+    it("tab order matches DOM order (row-major)", () => {
+      const { cells, board } = buildGrid(4);
+      const dispose = attachKeyboardNavigation(board, cells, newGame(4, 4), () => false, {
+        onHelp: () => {},
+        onLeaveBoard: () => {},
+      });
+      disposers.push(dispose);
+
+      // Collect cells in DOM order
+      const domOrder = Array.from(board.children) as HTMLElement[];
+      // Collect cells in row-major order from our cells array
+      const cellsFlat = cells.flat().map((c) => c.html);
+
+      expect(domOrder).toEqual(cellsFlat);
     });
   });
 });
@@ -507,6 +584,10 @@ describe("Undo integration", () => {
       ...options,
     });
     document.dispatchEvent(event);
+  }
+
+  function fireBoardKey(cell: Cell, key: string, options: Record<string, boolean> = {}): void {
+    cell.html.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }));
   }
 
   describe("mouse drag as one undo step", () => {
@@ -582,13 +663,15 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
-      keyDown("ArrowRight", { shiftKey: true }); // Begin selection, move right
-      keyDown("ArrowRight", { shiftKey: true }); // Continue selection
-      keyDown("ArrowRight", { shiftKey: true }); // Continue selection
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "ArrowRight", { shiftKey: true }); // Begin selection, move right
+      fireBoardKey(cells[0][1], "ArrowRight", { shiftKey: true }); // Continue selection
+      fireBoardKey(cells[0][2], "ArrowRight", { shiftKey: true }); // Continue selection
       // Simulate Shift key release to close the transaction
       document.dispatchEvent(new KeyboardEvent("keyup", { key: "Shift", bubbles: true }));
 
@@ -606,11 +689,13 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       expect(cells[0][0].state).toBe(1);
 
       keyDown("z", { ctrlKey: true });
@@ -622,11 +707,13 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       expect(cells[0][0].state).toBe(1);
 
       keyDown("z", { metaKey: true });
@@ -638,11 +725,13 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       undo!.undo();
       expect(cells[0][0].state).toBe(0);
 
@@ -659,12 +748,14 @@ describe("Undo integration", () => {
       const isAnyDialogOpen = () => dialogOpen;
       const dispose = attachKeyboardNavigation(board, cells, game, isAnyDialogOpen, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
       // Record a mark while dialog is closed
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       expect(undo!.depth()).toBe(1);
 
       // Now open dialog and try to undo - should be suppressed
@@ -679,12 +770,14 @@ describe("Undo integration", () => {
 
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
       // Record a mark while game is in progress
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       expect(undo!.depth()).toBe(1);
 
       // Now end the game and try to undo - should be suppressed
@@ -698,12 +791,14 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
       // Record a mark while no input has focus
-      keyDown("x");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "x");
       expect(undo!.depth()).toBe(1);
 
       // Now give an input focus and try to undo - should be suppressed
@@ -724,11 +819,13 @@ describe("Undo integration", () => {
       const game = newGame(4, 4);
       const dispose = attachKeyboardNavigation(board, cells, game, () => false, {
         onHelp: () => {},
+        onLeaveBoard: () => {},
         undo: undo!,
       });
       disposers.push(dispose);
 
-      keyDown("q");
+      cells[0][0].html.focus();
+      fireBoardKey(cells[0][0], "q");
       expect(cells[0][0].frozen).toBe(true);
       expect(cells[0][0].state).toBe(2);
 

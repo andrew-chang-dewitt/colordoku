@@ -487,6 +487,7 @@ async function main(): Promise<void> {
       isAnyDialogOpen,
       {
         onHelp: () => helpOverlay.open(),
+        onLeaveBoard: () => userMenu.focusTrigger(),
         undo: board.undo,
         onCommit: persist,
       },
@@ -586,6 +587,14 @@ async function main(): Promise<void> {
       if (saved === null && !hasSeenTutorial() && board.game.state === 0) {
         tutorial.start("first-run");
       }
+    }
+
+    // Requirement: no drawers/dialogs open and a real board on screen ->
+    // top-left cell gets initial keyboard focus. Placed after the tutorial
+    // auto-start and saved-ended-game branches above so isAnyDialogOpen()
+    // correctly reflects whether either of those just opened something.
+    if (!isAnyDialogOpen()) {
+      board.state[0][0].html.focus();
     }
 
     if (import.meta.env.DEV) {

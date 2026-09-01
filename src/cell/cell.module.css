@@ -143,12 +143,17 @@
     0 0 var(--cell-error-shadow-width) var(--color-mark);
 }
 
-/* Keyboard cursor focus indicator: a distinct inset ring layered onto the
- * existing edge box-shadow list. Inset by a couple pixels so it reads as
- * a keyboard cursor indicator, separate from the region-boundary edge lines.
- * Shares its color (--color-focus-ring, not its box-shadow mechanism) with
- * the tutorial's spotlight ring (callout.module.css, on a separate branch). */
-.cursor {
+/* Keyboard/DOM focus indicator: reuses .cell's own box-shadow list plus a
+ * ring inset by a couple pixels, so it reads as an indicator separate from
+ * the region-boundary edge lines. :focus-visible (not a JS-toggled class,
+ * per docs/plans/keyboard-dom-focus.md — supersedes the old separate
+ * cursor-tracking model) gives the standard "don't ring on a plain mouse
+ * click, do ring on keyboard/programmatic focus" behavior for free.
+ * Shares its color (--color-focus-ring, not this box-shadow mechanism)
+ * with the tutorial's spotlight ring (callout.module.css, on a separate
+ * branch). */
+.cell:focus-visible {
+  outline: none; /* replaced by the box-shadow ring below, not removed outright */
   box-shadow:
     inset 0 var(--edge-top-w) 0 0 var(--edge-top-c),
     inset calc(-1 * var(--edge-right-w)) 0 0 0 var(--edge-right-c),

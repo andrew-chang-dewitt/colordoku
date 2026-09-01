@@ -1,5 +1,4 @@
 import type { Cell } from "../cell/cell";
-import classes from "../cell/cell.module.css";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
@@ -227,6 +226,19 @@ export interface Anchor {
 }
 
 /**
+ * Shared helper to build a map from cell elements to their (row, col) coordinates,
+ * used by both attachRangeGestures (for multi-cell marking) and attachKeyboardNavigation
+ * (for DOM-focus-derived current cell lookup).
+ */
+function buildCoordMap(cells: Cell[][]): Map<HTMLElement, Coord> {
+  const coordOf = new Map<HTMLElement, Coord>();
+  cells.forEach((row, r) =>
+    row.forEach((cell, c) => coordOf.set(cell.html, { row: r, col: c })),
+  );
+  return coordOf;
+}
+
+/**
  * Wires up the two multi-cell marking gestures across the whole board:
  * shift+click a pair of cells in the same row/column to toggle every
  * non-frozen cell between them (inclusive) to the opposite of the
@@ -263,10 +275,7 @@ export function attachRangeGestures(
   cells: Cell[][],
   undo?: UndoStack,
 ): () => void {
-  const coordOf = new Map<HTMLElement, Coord>();
-  cells.forEach((row, r) =>
-    row.forEach((cell, c) => coordOf.set(cell.html, { row: r, col: c })),
-  );
+  const coordOf = buildCoordMap(cells);
 
   function hitFor(
     target: EventTarget | null,
@@ -613,72 +622,57 @@ export function attachAutoEliminate(
 }
 
 /**
- * Wires up keyboard navigation for the board: a cursor position that moves
- * with arrow/WASD/vim keys, X to toggle marks, Q to commit guesses, Shift+direction
- * for range selection, and ? to open the help overlay.
+ * Wires up keyboard navigation for the board using the native DOM Focus API:
+ * movement with arrow/WASD/vim keys (updates focus), X to toggle marks, Q to commit guesses,
+ * Shift+direction for range selection, Escape/M to leave the board, and ? to open help.
  *
- * The listener is attached to `document`, not the board element, and is gated by:
- * - Whether any dialog is currently open (all keys suppressed until it closes)
- * - Whether the game has ended (only ? remains live)
- * - Whether a form field currently has focus (all keys suppressed)
+ * Split across two listeners:
+ * - Board-scoped (`handleBoardKeyDown` on the board element): movement/X/Q/Escape/M keys
+ *   fire only when a cell has focus. Movement updates focus; X/Q act on the focused cell.
+ * - Document-scoped (`handleGlobalKeyDown` on document): ? (help) and Ctrl+Z/Cmd+Z (undo)
+ *   are app-global shortcuts, unaffected by which element is focused.
  *
- * Returns a dispose function that removes the document-level listeners. Call this
- * in tests to avoid leaking listeners across test runs, but newBoard() itself does
- * not call it — a single page load only ever builds one board, and full navigation
- * cleans everything up.
+ * The focused cell's CSS `:focus-visible` pseudo-class renders a keyboard indicator ring
+ * (pure CSS, no JS-toggled classes) — the browser's native "don't ring on a plain mouse click,
+ * do ring on keyboard/programmatic focus" heuristic applies automatically. Initial focus on
+ * cell (0,0) is applied by the caller (main.ts) after the board is mounted.
+ *
+ * Returns a dispose function that removes both listeners. Call this in tests to avoid leaking
+ * listeners across test runs, but newBoard() itself does not call it — a single page load only
+ * ever builds one board, and full navigation cleans everything up.
  */
 export function attachKeyboardNavigation(
-  _board: HTMLDivElement,
+  board: HTMLDivElement,
   cells: Cell[][],
   game: Game,
   isAnyDialogOpen: () => boolean,
-  { onHelp, undo, onCommit }: { onHelp: () => void; undo?: UndoStack; onCommit?: () => void },
+  { onHelp, onLeaveBoard, undo, onCommit }: { onHelp: () => void; onLeaveBoard: () => void; undo?: UndoStack; onCommit?: () => void },
 ): () => void {
   const size = cells.length;
-
-  // Cursor position, starting at top-left
-  let cursor: Coord = { row: 0, col: 0 };
+  const coordOf = buildCoordMap(cells);
 
   // For shift+direction range selection
   let keyboardSelectionAnchor: Anchor | null = null;
   let lastAppliedRange: Coord[] = [];
 
-  function updateCursorVisual(): void {
-    // Clear the previous cursor cell's visual
-    cells.forEach((row) =>
-      row.forEach((cell) => {
-        cell.html.classList.remove(classes.cursor);
-        cell.html.removeAttribute("aria-current");
-      }),
-    );
-
-    // Apply cursor visual to the current cell
-    const currentCell = cells[cursor.row][cursor.col];
-    currentCell.html.classList.add(classes.cursor);
-    currentCell.html.setAttribute("aria-current", "true");
+  function currentCoord(): Coord | null {
+    const active = document.activeElement;
+    return active instanceof HTMLElement ? (coordOf.get(active) ?? null) : null;
   }
 
-  function moveCursor(direction: Direction): void {
-    let newRow = cursor.row;
-    let newCol = cursor.col;
+  function focusCell(coord: Coord): void {
+    cells[coord.row][coord.col].html.focus();
+  }
 
+  function clampedMove(from: Coord, direction: Direction): Coord {
+    let row = from.row, col = from.col;
     switch (direction) {
-      case "up":
-        newRow = Math.max(0, newRow - 1);
-        break;
-      case "down":
-        newRow = Math.min(size - 1, newRow + 1);
-        break;
-      case "left":
-        newCol = Math.max(0, newCol - 1);
-        break;
-      case "right":
-        newCol = Math.min(size - 1, newCol + 1);
-        break;
+      case "up": row = Math.max(0, row - 1); break;
+      case "down": row = Math.min(size - 1, row + 1); break;
+      case "left": col = Math.max(0, col - 1); break;
+      case "right": col = Math.min(size - 1, col + 1); break;
     }
-
-    cursor = { row: newRow, col: newCol };
-    updateCursorVisual();
+    return { row, col };
   }
 
   function unmarkCells(coords: Coord[]): void {
@@ -701,38 +695,23 @@ export function attachKeyboardNavigation(
     }
   }
 
-  function handleKeyDown(event: KeyboardEvent): void {
-    // Gate 1: Any dialog open? All keys suppressed.
+  function handleBoardKeyDown(event: KeyboardEvent): void {
+    // Gate: Any dialog open? All keys suppressed.
     if (isAnyDialogOpen()) return;
 
-    // Gate 2: Game ended? Only ? (help) still works.
-    if (game.state !== 0 && event.key !== "?") return;
-
-    // Gate 3: A form field has focus? All keys suppressed.
-    if (
-      document.activeElement instanceof HTMLInputElement ||
-      document.activeElement instanceof HTMLTextAreaElement ||
-      document.activeElement instanceof HTMLSelectElement ||
-      (document.activeElement instanceof HTMLElement &&
-        document.activeElement.isContentEditable)
-    ) {
-      return;
-    }
-
-    // ? - help overlay
-    if (event.key === "?") {
+    // Escape / M - leave the board (always allow, even post-game)
+    if (event.key === "Escape" || event.key === "m" || event.key === "M") {
       event.preventDefault();
-      onHelp();
+      onLeaveBoard();
       return;
     }
 
-    // Ctrl+Z / Cmd+Z - undo
-    if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
-      if (event.shiftKey) return; // no redo — leave Ctrl+Shift+Z alone
-      event.preventDefault();
-      undo?.undo();
-      return;
-    }
+    // Gate: Game ended? No movement/X/Q allowed after game ends.
+    if (game.state !== 0) return;
+
+    // Defensive: ensure we actually have focus on a cell (shouldn't happen given bubble scoping).
+    const coord = currentCoord();
+    if (coord === null) return;
 
     // Movement keys
     const direction = directionFor(event.key);
@@ -746,18 +725,19 @@ export function attachKeyboardNavigation(
         lastAppliedRange = [];
       }
 
-      const oldCursor = { ...cursor };
-      moveCursor(direction);
+      const oldCoord = { ...coord };
+      const newCoord = clampedMove(coord, direction);
+      focusCell(newCoord);
 
       // If Shift is held, handle range selection
       if (event.shiftKey) {
         // First Shift+direction: set the anchor
         if (keyboardSelectionAnchor === null) {
-          const anchorCell = cells[oldCursor.row][oldCursor.col];
+          const anchorCell = cells[oldCoord.row][oldCoord.col];
           if (!anchorCell.frozen) {
             undo?.begin();
             keyboardSelectionAnchor = {
-              coord: oldCursor,
+              coord: oldCoord,
               value: anchorCell.state === 1 ? 1 : 0,
             };
           } else {
@@ -767,7 +747,7 @@ export function attachKeyboardNavigation(
         }
 
         // Compute new range from anchor to current cursor
-        const newRange = cellsBetween(keyboardSelectionAnchor.coord, cursor);
+        const newRange = cellsBetween(keyboardSelectionAnchor.coord, newCoord);
         if (newRange === null) return; // shouldn't happen with keyboard movement
 
         // Diff old vs new range: unmark cells that left the range, mark new ones
@@ -801,20 +781,54 @@ export function attachKeyboardNavigation(
       return;
     }
 
-    // X - toggle mark on cursor cell only
+    // X - toggle mark on focused cell only
     if (event.key === "x" || event.key === "X") {
       event.preventDefault();
-      const cursorCell = cells[cursor.row][cursor.col];
-      cursorCell.toggle();
+      const focusedCell = cells[coord.row][coord.col];
+      focusedCell.toggle();
       return;
     }
 
-    // Q - commit guess on cursor cell only
+    // Q - commit guess on focused cell only
     if (event.key === "q" || event.key === "Q") {
       event.preventDefault();
-      const cursorCell = cells[cursor.row][cursor.col];
-      cursorCell.commit();
+      const focusedCell = cells[coord.row][coord.col];
+      focusedCell.commit();
       onCommit?.();
+      return;
+    }
+  }
+
+  function handleGlobalKeyDown(event: KeyboardEvent): void {
+    // Gate 1: Any dialog open? All keys suppressed.
+    if (isAnyDialogOpen()) return;
+
+    // Gate 2: Game ended? Only ? (help) still works.
+    if (game.state !== 0 && event.key !== "?") return;
+
+    // Gate 3: A form field has focus? All keys suppressed.
+    if (
+      document.activeElement instanceof HTMLInputElement ||
+      document.activeElement instanceof HTMLTextAreaElement ||
+      document.activeElement instanceof HTMLSelectElement ||
+      (document.activeElement instanceof HTMLElement &&
+        document.activeElement.isContentEditable)
+    ) {
+      return;
+    }
+
+    // ? - help overlay
+    if (event.key === "?") {
+      event.preventDefault();
+      onHelp();
+      return;
+    }
+
+    // Ctrl+Z / Cmd+Z - undo
+    if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
+      if (event.shiftKey) return; // no redo — leave Ctrl+Shift+Z alone
+      event.preventDefault();
+      undo?.undo();
       return;
     }
   }
@@ -828,14 +842,13 @@ export function attachKeyboardNavigation(
     }
   }
 
-  document.addEventListener("keydown", handleKeyDown);
+  board.addEventListener("keydown", handleBoardKeyDown);
+  document.addEventListener("keydown", handleGlobalKeyDown);
   document.addEventListener("keyup", handleKeyUp);
 
-  // Apply initial cursor visual
-  updateCursorVisual();
-
   return () => {
-    document.removeEventListener("keydown", handleKeyDown);
+    board.removeEventListener("keydown", handleBoardKeyDown);
+    document.removeEventListener("keydown", handleGlobalKeyDown);
     document.removeEventListener("keyup", handleKeyUp);
   };
 }

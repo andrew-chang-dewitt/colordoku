@@ -84,6 +84,11 @@ export interface UserMenu {
    * board.ts's attachRangeGestures dispose return.
    */
   dispose: () => void;
+  /**
+   * Moves DOM focus to the menu's trigger button — used by the board's
+   * Escape/M keyboard shortcut to leave the board.
+   */
+  focusTrigger: () => void;
 }
 
 export function newUserMenu({ onOpenHistory, onOpenScoreView, onOpenPreferences }: UserMenuConfig): UserMenu {
@@ -193,6 +198,9 @@ export function newUserMenu({ onOpenHistory, onOpenScoreView, onOpenPreferences 
     dispose() {
       document.removeEventListener("click", onDocumentClick);
       document.removeEventListener("keydown", onDocumentKeydown);
+    },
+    focusTrigger() {
+      button.focus();
     },
   };
 }
