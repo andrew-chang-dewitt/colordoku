@@ -49,6 +49,10 @@ function plainClick(cell: Cell): void {
   cell.html.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function fireBoardKey(cell: Cell, key: string, options: Record<string, boolean> = {}): void {
+  cell.html.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }));
+}
+
 const states = (cells: Cell[]): number[] => cells.map((c) => c.state);
 
 describe("maxGuessesFor", () => {
@@ -584,10 +588,6 @@ describe("Undo integration", () => {
       ...options,
     });
     document.dispatchEvent(event);
-  }
-
-  function fireBoardKey(cell: Cell, key: string, options: Record<string, boolean> = {}): void {
-    cell.html.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }));
   }
 
   describe("mouse drag as one undo step", () => {
