@@ -177,8 +177,8 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
 - [/] #gameover-ui UI indicating a game was won or lost
   (plan: `docs/plans/gameover-modal-ui.md`)
   - [x] improve win UI by making it a little more celebratory, maybe add things
-    like a confetti animation popping in from the sides angled up at 45ish
-    degree angles then falling down behind the modal in the background
+        like a confetti animation popping in from the sides angled up at 45ish
+        degree angles then falling down behind the modal in the background
     - [x] also add score to win modal
     - [x] and if they want to share board & their completion time/score
     - [ ] confetti gravity direction follows device rotation (rotate the
@@ -220,7 +220,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] automatically give a fixed score boost for completion (not tied to time)
   - [x] finally: point out help button & replay affordance at end of tutorial
 - [x] #user-score calculate some sort of "score" value based on board size, difficulty, &
-  completion time
+      completion time
   - [x] determine how to score losses (are they negative? no score at all?
         number of attempts to reach a win influences score?)
   - [x] track cumulative score over time ranges (today, this week, this month,
@@ -297,9 +297,9 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     will need to investigate what that critical mass may look like & how to
     tell if it's been achieved.
 - [x] #undo undo button (can't undo placing queens or incorrect guesses) — marks only; a committed guess (queen or wrong) is permanent (plan: docs/plans/undo.md)
-- [x] option in preferences to auto  eliminate columns, rows, & neighbors on correct queen placement (defaults to off)
+- [x] option in preferences to auto eliminate columns, rows, & neighbors on correct queen placement (defaults to off)
 - [x] BUG: share link isn't including difficulty setting
 - [x] BUG: time to complete doesn't appear to factor onto score — a faster completion time should give a higher score than a slower one
-- [ ] add ui to HUD that indicates how many queens have been found out of total
+- [x] add ui to HUD that indicates how many queens have been found out of total
 - [x] multiple attempts to complete should factor into score — more attempts -> lower score
 - [x] incorrect guesses should factor into score — more incorrect guesses -> lower score
