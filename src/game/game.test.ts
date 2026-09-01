@@ -78,11 +78,12 @@ describe("newGame", () => {
 
   it("marks one guess pip per wrong guess", () => {
     const game = newGame(4, 3);
-    expect(game.html.children).toHaveLength(3);
+    const pips = game.html.querySelector("ul")!;
+    expect(pips.children).toHaveLength(3);
 
     // Exact comparison, not a substring test: "unused" contains "used".
     const usedPips = () =>
-      [...game.html.children].filter((pip) => pip.className === classes.used)
+      [...pips.children].filter((pip) => pip.className === classes.used)
         .length;
 
     expect(usedPips()).toBe(0);
@@ -90,5 +91,51 @@ describe("newGame", () => {
     expect(usedPips()).toBe(1);
     game.incGuess();
     expect(usedPips()).toBe(2);
+  });
+
+  it("shows counter text on a fresh game", () => {
+    const game = newGame(4, 2);
+    const counter = game.html.querySelector("p")!;
+    expect(counter.textContent).toBe("0 of 4 queens found");
+  });
+
+  it("updates counter text after incFound()", () => {
+    const game = newGame(4, 2);
+    const counter = game.html.querySelector("p")!;
+    expect(counter.textContent).toBe("0 of 4 queens found");
+
+    game.incFound();
+    expect(counter.textContent).toBe("1 of 4 queens found");
+
+    game.incFound();
+    expect(counter.textContent).toBe("2 of 4 queens found");
+  });
+
+  it("counter does not change on incGuess() alone", () => {
+    const game = newGame(4, 2);
+    const counter = game.html.querySelector("p")!;
+    expect(counter.textContent).toBe("0 of 4 queens found");
+
+    game.incGuess();
+    expect(counter.textContent).toBe("0 of 4 queens found");
+
+    game.incGuess();
+    expect(counter.textContent).toBe("0 of 4 queens found");
+  });
+
+  it("win condition still fires correctly after adding update() to incFound()", () => {
+    const game = newGame(4, 2);
+    const endStates: Array<1 | 2> = [];
+    game.onEnd((state) => endStates.push(state));
+
+    game.incFound();
+    game.incFound();
+    game.incFound();
+    expect(game.state).toBe(0);
+    expect(endStates).toEqual([]);
+
+    game.incFound();
+    expect(game.state).toBe(1);
+    expect(endStates).toEqual([1]);
   });
 });

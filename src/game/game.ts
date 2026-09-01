@@ -17,12 +17,12 @@ export interface Game {
    */
   onEnd: (cb: (state: 1 | 2) => void) => void;
 
-  html: HTMLUListElement;
+  html: HTMLElement;
   update: () => void;
 }
 
 export function newGame(size: number, max: number): Game {
-  const html = renderGame(max);
+  const { wrapper, pips, counter } = renderGame(size, max);
   const listeners: Array<(state: 1 | 2) => void> = [];
 
   function notifyEnd(state: 1 | 2): void {
@@ -31,13 +31,14 @@ export function newGame(size: number, max: number): Game {
 
   return {
     size,
-    html,
+    html: wrapper,
     guessesLeft: max,
     queensFound: 0,
     state: 0,
 
     incFound() {
       this.queensFound++;
+      this.update();
       if (this.queensFound == this.size) {
         this.state = 1;
         notifyEnd(1);
@@ -55,8 +56,9 @@ export function newGame(size: number, max: number): Game {
 
     update() {
       for (let i = this.guessesLeft; i < max; i++) {
-        this.html.children[i].className = classes.used;
+        pips.children[i].className = classes.used;
       }
+      counter.textContent = `${this.queensFound} of ${this.size} queens found`;
     },
 
     onEnd(cb) {
@@ -65,15 +67,26 @@ export function newGame(size: number, max: number): Game {
   };
 }
 
-function renderGame(max: number): HTMLUListElement {
-  const html = document.createElement("ul");
-  html.className = classes.guesses;
+function renderGame(
+  size: number,
+  max: number
+): { wrapper: HTMLElement; pips: HTMLUListElement; counter: HTMLParagraphElement } {
+  const wrapper = document.createElement("div");
+
+  const counter = document.createElement("p");
+  counter.className = classes.queensFound;
+  counter.textContent = `0 of ${size} queens found`;
+
+  const pips = document.createElement("ul");
+  pips.className = classes.guesses;
 
   for (let i = 0; i < max; i++) {
     const guess = document.createElement("li");
     guess.className = classes.unused;
-    html.append(guess);
+    pips.append(guess);
   }
 
-  return html;
+  wrapper.append(counter, pips);
+
+  return { wrapper, pips, counter };
 }

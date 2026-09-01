@@ -1,3 +1,10 @@
+p.queensFound {
+  margin: 0 0 0.25em;
+  text-align: center;
+  font-size: 0.9em;
+  color: var(--color-on-surface);
+}
+
 ul.guesses {
   display: flex;
   justify-content: center;
