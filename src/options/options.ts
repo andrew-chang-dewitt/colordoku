@@ -147,9 +147,64 @@ export function newOptions({
   input.max = String(MAX_SIZE);
   input.step = "1";
   input.required = true;
-  input.value = String(clampToRange(size));
   input.className = classes.input;
-  sizeField.append(input);
+
+  // Helper function to sync button disabled state based on input value
+  const updateButtonDisabled = (): void => {
+    const value = Number(input.value);
+    decrement.disabled = value <= MIN_SIZE;
+    increment.disabled = value >= MAX_SIZE;
+  };
+
+  // Helper function to set size with clamping and disabled state sync
+  const setSize = (value: number): void => {
+    const clamped = clampToRange(value);
+    input.value = String(clamped);
+    updateButtonDisabled();
+  };
+
+  // Create stepper container: input, then a stacked up/down button pair to its right.
+  const stepper = document.createElement("div");
+  stepper.className = classes.stepper;
+  stepper.append(input);
+
+  const stepperButtons = document.createElement("div");
+  stepperButtons.className = classes.stepperButtons;
+
+  // Create increment button (up arrow, on top)
+  const increment = document.createElement("button");
+  increment.type = "button";
+  increment.className = classes.stepperButton;
+  increment.setAttribute("aria-label", "Increase board size");
+  increment.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M5 15l7-7 7 7"/>' +
+    "</svg>";
+  increment.addEventListener("click", () => setSize(Number(input.value) + 1));
+  stepperButtons.append(increment);
+
+  // Create decrement button (down arrow, below)
+  const decrement = document.createElement("button");
+  decrement.type = "button";
+  decrement.className = classes.stepperButton;
+  decrement.setAttribute("aria-label", "Decrease board size");
+  decrement.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M5 9l7 7 7-7"/>' +
+    "</svg>";
+  decrement.addEventListener("click", () => setSize(Number(input.value) - 1));
+  stepperButtons.append(decrement);
+
+  stepper.append(stepperButtons);
+
+  // Set initial size and button disabled states
+  setSize(size);
+
+  // Add input listener to keep disabled state in sync with manual typing
+  input.addEventListener("input", () => updateButtonDisabled());
+
+  // Append stepper to field
+  sizeField.append(stepper);
 
   const hint = document.createElement("p");
   hint.className = classes.hint;

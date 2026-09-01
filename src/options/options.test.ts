@@ -40,6 +40,101 @@ describe("the size field", () => {
   });
 });
 
+describe("stepper buttons", () => {
+  function getStepperButtons(html: HTMLElement): {
+    decrement: HTMLButtonElement;
+    increment: HTMLButtonElement;
+  } {
+    const buttons = Array.from(html.querySelectorAll<HTMLButtonElement>("button[type=button]"));
+    // Find the stepper buttons: they have aria-label attributes for decrease/increase
+    const decrement = buttons.find((b) => b.getAttribute("aria-label") === "Decrease board size")!;
+    const increment = buttons.find((b) => b.getAttribute("aria-label") === "Increase board size")!;
+    return { decrement, increment };
+  }
+
+  it("clicking decrement/increment changes input.value by 1", () => {
+    const { options, input } = mount({ size: 8 });
+    const { decrement, increment } = getStepperButtons(options.html);
+
+    increment.click();
+    expect(input.value).toBe("9");
+
+    decrement.click();
+    expect(input.value).toBe("8");
+
+    decrement.click();
+    expect(input.value).toBe("7");
+  });
+
+  it("increment is disabled when input.value === MAX_SIZE, decrement disabled at MIN_SIZE, and neither is disabled strictly between", () => {
+    const { options, input } = mount();
+    const { decrement, increment } = getStepperButtons(options.html);
+
+    // Start in the middle
+    input.value = String(Math.round((MIN_SIZE + MAX_SIZE) / 2));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(decrement.disabled).toBe(false);
+    expect(increment.disabled).toBe(false);
+
+    // At MIN_SIZE
+    input.value = String(MIN_SIZE);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(decrement.disabled).toBe(true);
+    expect(increment.disabled).toBe(false);
+
+    // At MAX_SIZE
+    input.value = String(MAX_SIZE);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(decrement.disabled).toBe(false);
+    expect(increment.disabled).toBe(true);
+  });
+
+  it("clicking increment at MAX_SIZE - 1 lands exactly on MAX_SIZE and then disables increment", () => {
+    const { options, input } = mount();
+    const { increment } = getStepperButtons(options.html);
+
+    input.value = String(MAX_SIZE - 1);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(increment.disabled).toBe(false);
+
+    increment.click();
+    expect(input.value).toBe(String(MAX_SIZE));
+    expect(increment.disabled).toBe(true);
+  });
+
+  it("manually typing a boundary value into the input also disables the matching button, without the field's own value being overwritten mid-type", () => {
+    const { options, input } = mount();
+    const { decrement, increment } = getStepperButtons(options.html);
+
+    // Simulate user typing MIN_SIZE
+    input.value = String(MIN_SIZE);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(input.value).toBe(String(MIN_SIZE));
+    expect(decrement.disabled).toBe(true);
+    expect(increment.disabled).toBe(false);
+
+    // Simulate user typing MAX_SIZE
+    input.value = String(MAX_SIZE);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(input.value).toBe(String(MAX_SIZE));
+    expect(decrement.disabled).toBe(false);
+    expect(increment.disabled).toBe(true);
+  });
+
+  it("submitting after using the steppers still calls onSubmit with the stepped-to value", () => {
+    const onSubmit = vi.fn();
+    const { options, input, form } = mount({ onSubmit, size: 8 });
+    const { increment } = getStepperButtons(options.html);
+
+    increment.click();
+    increment.click();
+    expect(input.value).toBe("10");
+
+    submit(form);
+    expect(onSubmit).toHaveBeenCalledWith(10, "medium");
+  });
+});
+
 describe("the difficulty field (UI only — not wired to any game behavior yet)", () => {
   function radios(html: HTMLElement): HTMLInputElement[] {
     return Array.from(html.querySelectorAll<HTMLInputElement>('input[type="radio"]'));
@@ -196,7 +291,7 @@ describe("opening and closing", () => {
 
   it("hides the cancel button only when non-dismissable", () => {
     const { options } = mount();
-    const cancel = options.html.querySelector<HTMLButtonElement>("button[type=button]")!;
+    const cancel = options.html.querySelector<HTMLButtonElement>("button.btn-secondary")!;
 
     options.open({ dismissable: false });
     expect(cancel.hidden).toBe(true);

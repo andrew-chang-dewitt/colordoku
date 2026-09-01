@@ -93,18 +93,66 @@
   font-weight: bold;
 }
 
+.stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 0.4em;
+}
+
+.stepperButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .input {
+  flex: 1;
   padding: 0.5em;
   font-size: 1em;
+  text-align: center;
   color: var(--color-on-surface);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.25em;
+  /* Suppress native number-input spinner arrows */
+  appearance: textfield;
+}
+
+/* WebKit-specific pseudo-elements for hiding number spinner */
+.input::-webkit-inner-spin-button,
+.input::-webkit-outer-spin-button {
+  display: none;
 }
 
 .input:focus-visible {
   outline: none;
   box-shadow: var(--focus-glow);
+}
+
+.stepperButton {
+  flex: 1;
+  padding: 0.2em 0.5em;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25em;
+  background-color: var(--color-surface);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.stepperButton:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
+}
+
+.stepperButton:focus-visible {
+  outline: 2px solid var(--color-on-surface);
+  outline-offset: 1px;
+}
+
+.stepperButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .hint {
