@@ -39,7 +39,7 @@ export interface TutorialStep {
 export const STEPS: readonly TutorialStep[] = [
   {
     id: "welcome",
-    title: "Colordoku &mdash; how to play",
+    title: "Colordoku — how to play",
     body: "Similar to sudoku, Colordoku is a logic puzzle where you attempt to find how items are arranged in a grid. Your goal is to find every queen without making too many incorrect guesses. In the next few pages, we'll learn how in a practice puzzle.",
     // A null anchor (kind: "none") always centers regardless of `placement`
     // — see placeBubble's doc comment — so no `placement` is set here.

@@ -191,7 +191,7 @@ describe("tutorial.ts", () => {
     });
     tutorial.start("first-run");
 
-    expect(titleText(tutorial)).toBe("Welcome");
+    expect(titleText(tutorial)).toBe("Colordoku — how to play");
     clickByPreference(tutorial, "Start");
     expect(titleText(tutorial)).toBe("Colours = regions");
     clickByPreference(tutorial, "Next"); // -> no-adjacent
