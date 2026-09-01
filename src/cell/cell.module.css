@@ -158,8 +158,7 @@
 .cell:focus-visible {
   outline: none; /* replaced by the box-shadow glow below, not removed outright */
   box-shadow:
-    inset 0 0 0.5em 0.05em var(--color-focus-ring),
-    inset 0 0 0.15em 0.05em var(--color-focus-ring),
+    var(--focus-glow-inset),
     inset 0 var(--edge-top-w) 0 0 var(--edge-top-c),
     inset calc(-1 * var(--edge-right-w)) 0 0 0 var(--edge-right-c),
     inset 0 calc(-1 * var(--edge-bottom-w)) 0 0 var(--edge-bottom-c),

@@ -103,8 +103,8 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--color-on-surface);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus-glow);
 }
 
 .hint {
@@ -159,8 +159,8 @@
 }
 
 .choice:has(:focus-visible) {
-  outline: 2px solid var(--color-on-surface);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: var(--focus-glow);
 }
 
 .choice:has(:checked) {

@@ -147,6 +147,29 @@
    * and tutorial spotlight ring (callout.module.css, on separate branch).
    * Deliberately distinct from --color-border and --color-region-edge. */
   --color-focus-ring: #0066cc;
+  /* Shared soft-glow focus indicator, built from --color-focus-ring — used
+   * app-wide by every :focus-visible rule (see cell.module.css,
+   * historyview/usermenu/options/scoreview .module.css) instead of a hard
+   * outline, so keyboard focus reads consistently everywhere. Two layers:
+   * a wider soft blur plus a tighter, less-blurred one close to the edge,
+   * so it reads as a glow/gradient rather than a flat stroke.
+   * --focus-glow sits outside the element's own box (for normal
+   * inline/block elements with room around them); --focus-glow-inset is
+   * the same treatment turned inward, for elements with little to no
+   * margin around them (e.g. usermenu's dropdown items, and cell.module.css's
+   * cells, which also need to layer it alongside their own border shadows). */
+  --focus-glow:
+    0 0 0.5em 0.05em var(--color-focus-ring), 0 0 0.15em 0.05em
+      var(--color-focus-ring);
+  --focus-glow-inset:
+    inset 0 0 0.5em 0.05em var(--color-focus-ring),
+    inset 0 0 0.15em 0.05em var(--color-focus-ring);
+  /* Same glow, as an SVG filter — box-shadow doesn't apply to SVG shape
+   * elements (e.g. scoreview.module.css's .point circles), only real CSS
+   * boxes. */
+  --focus-glow-filter:
+    drop-shadow(0 0 0.3em var(--color-focus-ring))
+    drop-shadow(0 0 0.1em var(--color-focus-ring));
 
   --color-surface: #ffffff;
   --color-on-surface: #101010;
@@ -251,6 +274,11 @@ body {
 .btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-glow);
 }
 
 .btn-primary {
