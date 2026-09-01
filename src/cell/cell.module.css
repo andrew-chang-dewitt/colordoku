@@ -143,22 +143,25 @@
     0 0 var(--cell-error-shadow-width) var(--color-mark);
 }
 
-/* Keyboard/DOM focus indicator: reuses .cell's own box-shadow list plus a
- * ring inset by a couple pixels, so it reads as an indicator separate from
- * the region-boundary edge lines. :focus-visible (not a JS-toggled class,
- * per docs/plans/keyboard-dom-focus.md — supersedes the old separate
+/* Keyboard/DOM focus indicator: a soft inward glow, not a hard-edged ring —
+ * listed *first* in the box-shadow stack (the first shadow paints on top;
+ * the region-edge shadows below it would otherwise visually clip a
+ * hard-edged ring at the cell's own border, which is what a flat 2px inset
+ * ring used to do). Blurred and with no spread, so it reads as a glow
+ * gradient inward from every side rather than a stroke — still obvious, but
+ * more subtle than a border. :focus-visible (not a JS-toggled class, per
+ * docs/plans/keyboard-dom-focus.md — supersedes the old separate
  * cursor-tracking model) gives the standard "don't ring on a plain mouse
- * click, do ring on keyboard/programmatic focus" behavior for free.
- * Shares its color (--color-focus-ring, not this box-shadow mechanism)
- * with the tutorial's spotlight ring (callout.module.css, on a separate
- * branch). */
+ * click, do ring on keyboard/programmatic focus" behavior for free. Shares
+ * its color (--color-focus-ring, not this box-shadow mechanism) with the
+ * tutorial's spotlight ring (callout.module.css, on a separate branch). */
 .cell:focus-visible {
-  outline: none; /* replaced by the box-shadow ring below, not removed outright */
+  outline: none; /* replaced by the box-shadow glow below, not removed outright */
   box-shadow:
+    inset 0 0 0.5em 0.05em var(--color-focus-ring),
+    inset 0 0 0.15em 0.05em var(--color-focus-ring),
     inset 0 var(--edge-top-w) 0 0 var(--edge-top-c),
     inset calc(-1 * var(--edge-right-w)) 0 0 0 var(--edge-right-c),
     inset 0 calc(-1 * var(--edge-bottom-w)) 0 0 var(--edge-bottom-c),
-    inset var(--edge-left-w) 0 0 0 var(--edge-left-c),
-    inset 2px 2px 0 0 var(--color-focus-ring),
-    inset -2px -2px 0 0 var(--color-focus-ring);
+    inset var(--edge-left-w) 0 0 0 var(--edge-left-c);
 }
