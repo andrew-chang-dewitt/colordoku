@@ -145,13 +145,15 @@
 
 /* Keyboard cursor focus indicator: a distinct inset ring layered onto the
  * existing edge box-shadow list. Inset by a couple pixels so it reads as
- * a keyboard cursor indicator, separate from the region-boundary edge lines. */
+ * a keyboard cursor indicator, separate from the region-boundary edge lines.
+ * Shares its color (--color-focus-ring, not its box-shadow mechanism) with
+ * the tutorial's spotlight ring (callout.module.css, on a separate branch). */
 .cursor {
   box-shadow:
     inset 0 var(--edge-top-w) 0 0 var(--edge-top-c),
     inset calc(-1 * var(--edge-right-w)) 0 0 0 var(--edge-right-c),
     inset 0 calc(-1 * var(--edge-bottom-w)) 0 0 var(--edge-bottom-c),
     inset var(--edge-left-w) 0 0 0 var(--edge-left-c),
-    inset 2px 2px 0 0 var(--color-cursor),
-    inset -2px -2px 0 0 var(--color-cursor);
+    inset 2px 2px 0 0 var(--color-focus-ring),
+    inset -2px -2px 0 0 var(--color-focus-ring);
 }

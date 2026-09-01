@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cell } from "../cell/cell";
 import { newCell } from "../cell/cell";
+import classes from "../cell/cell.module.css";
 import { newGame } from "../game/game";
 import { attachRangeGestures, attachKeyboardNavigation, cellsBetween, coordsToEliminate, attachAutoEliminate, directionFor, maxGuessesFor } from "./board";
 import { newUndoStack } from "../undo/undo";
@@ -488,7 +489,7 @@ describe("attachKeyboardNavigation", () => {
       });
       disposers.push(dispose);
 
-      expect(cells[0][0].html.classList.contains("cursor")).toBe(true);
+      expect(cells[0][0].html.classList.contains(classes.cursor)).toBe(true);
     });
   });
 });

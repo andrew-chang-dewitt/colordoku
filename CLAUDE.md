@@ -59,7 +59,9 @@ Most modules are factory functions, each returning an object literal holding sta
   part of the gesture. `attachRangeGestures` returns a dispose function (removes its
   `window`-level mouse listeners) — `newBoard()` doesn't call it (one board per page load,
   a full navigation tears everything down), but tests do, to avoid leaking a listener
-  across jsdom/happy-dom's long-lived `window`.
+  across jsdom/happy-dom's long-lived `window`. Also exports `attachKeyboardNavigation()`,
+  which wires up arrow/WASD/vim-key navigation with a visual cursor ring (styled in
+  `cell.module.css` via the shared `--color-focus-ring` token).
 - `src/options/options.ts` — `newOptions(config?)`: the new-game `<dialog>` (board-size
   input, clamped to `MIN_SIZE..MAX_SIZE`). `open({dismissable})` / `close()`; opened
   non-dismissable when there's no board behind it yet to fall back to (initial load with

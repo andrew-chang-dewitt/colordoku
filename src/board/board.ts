@@ -1,4 +1,5 @@
 import type { Cell } from "../cell/cell";
+import classes from "../cell/cell.module.css";
 import type { Game } from "../game/game";
 import { newGame } from "../game/game";
 import { generateCells } from "./generate";
@@ -646,14 +647,14 @@ export function attachKeyboardNavigation(
     // Clear the previous cursor cell's visual
     cells.forEach((row) =>
       row.forEach((cell) => {
-        cell.html.classList.remove("cursor");
+        cell.html.classList.remove(classes.cursor);
         cell.html.removeAttribute("aria-current");
       }),
     );
 
     // Apply cursor visual to the current cell
     const currentCell = cells[cursor.row][cursor.col];
-    currentCell.html.classList.add("cursor");
+    currentCell.html.classList.add(classes.cursor);
     currentCell.html.setAttribute("aria-current", "true");
   }
 
