@@ -223,6 +223,12 @@ describe("opening and closing", () => {
     options.html.dispatchEvent(new Event("click", { bubbles: true }));
     expect(options.html.open).toBe(true);
   });
+
+  it("focuses and selects the size input on open (intentional exception to primary-button-focus)", () => {
+    const { options, input } = mount();
+    options.open();
+    expect(document.activeElement).toBe(input);
+  });
 });
 
 describe("startOver", () => {

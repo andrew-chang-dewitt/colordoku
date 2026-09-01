@@ -201,6 +201,7 @@ export function newHelpOverlay(config?: HelpConfig): HelpOverlay {
     open() {
       if (!html.open) {
         html.showModal();
+        closeButton.focus();
       }
     },
 

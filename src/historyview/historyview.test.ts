@@ -412,4 +412,28 @@ describe("newHistoryView", () => {
     expect(statusSelect.value).toBe("won");
     expect(view.html.querySelectorAll("ul > li")).toHaveLength(1);
   });
+
+  it("moves focus to the Close button on open()", () => {
+    const view = newHistoryView({ onPlayAgain: vi.fn(), getEntries: () => [] });
+    document.body.append(view.html);
+    view.open();
+    const closeButton = [...view.html.querySelectorAll("button")].find(
+      (b) => b.textContent === "Close",
+    )!;
+    expect(document.activeElement).toBe(closeButton);
+  });
+
+  it("still moves focus to the Close button (not an entry's own button) when opened with focusEntryId", () => {
+    const fixtureEntries = [
+      entry({ id: "entry-0", startedAt: 1000 }),
+      entry({ id: "entry-1", startedAt: 2000 }),
+    ];
+    const view = newHistoryView({ onPlayAgain: vi.fn(), getEntries: () => fixtureEntries });
+    document.body.append(view.html);
+    view.open(fixtureEntries[0].id);
+    const closeButton = [...view.html.querySelectorAll("button")].find(
+      (b) => b.textContent === "Close",
+    )!;
+    expect(document.activeElement).toBe(closeButton);
+  });
 });

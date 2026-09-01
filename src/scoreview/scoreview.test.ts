@@ -162,6 +162,16 @@ describe("newScoreView", () => {
     expect(view.html.open).toBe(false);
   });
 
+  it("moves focus to the Close button on open()", () => {
+    const view = newScoreView({ getEntries: () => [], onViewInHistory: vi.fn() });
+    document.body.append(view.html);
+    view.open();
+    const closeButton = [...view.html.querySelectorAll("button")].find(
+      (b) => b.textContent === "Close",
+    )!;
+    expect(document.activeElement).toBe(closeButton);
+  });
+
   describe("chart (per-game, current calendar week only)", () => {
     // Fix "now" to a specific moment inside the week of Mon Aug 24 2026 so
     // currentWeekBounds() in the component under test lines up with the

@@ -252,6 +252,10 @@ export function newOptions({
       dismissable = allowDismiss;
       cancel.hidden = !allowDismiss;
       if (!html.open) html.showModal();
+      // Deliberate exception to "focus the primary button on open" (see
+      // docs/plans/dialog-initial-focus.md): this dialog's overwhelmingly
+      // common interaction is "immediately retype the number," so the size
+      // input keeps initial focus instead of the "Go!" button.
       input.focus();
       input.select();
     },

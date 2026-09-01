@@ -82,7 +82,10 @@ export function newPreferences({
   return {
     html,
     open: () => {
-      if (!html.open) html.showModal();
+      if (!html.open) {
+        html.showModal();
+        close.focus();
+      }
     },
     close: () => html.close(),
     get: () => ({ ...state }),

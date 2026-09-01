@@ -171,6 +171,26 @@ describe("newHelpOverlay", () => {
     closeButton?.dispatchEvent(new Event("click"));
     expect(overlay.html.open).toBe(false);
   });
+
+  it("moves focus to the Close button on open", () => {
+    const overlay = newHelpOverlay();
+    document.body.append(overlay.html);
+    overlay.open();
+    const closeButton = [...overlay.html.querySelectorAll("button")].find(
+      (b) => b.textContent === "Close",
+    )!;
+    expect(document.activeElement).toBe(closeButton);
+  });
+
+  it("still focuses Close, not Replay, when the tutorial-replay button is present", () => {
+    const overlay = newHelpOverlay({ onReplayTutorial: vi.fn() });
+    document.body.append(overlay.html);
+    overlay.open();
+    const closeButton = [...overlay.html.querySelectorAll("button")].find(
+      (b) => b.textContent === "Close",
+    )!;
+    expect(document.activeElement).toBe(closeButton);
+  });
 });
 
 describe("newHelpButton", () => {

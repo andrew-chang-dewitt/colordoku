@@ -367,7 +367,10 @@ export function newGameOver({
       }
 
       // Open dialog BEFORE starting animations on confetti, so they start on rendered elements
-      if (!html.open) html.showModal();
+      if (!html.open) {
+        html.showModal();
+        newGame.focus();
+      }
 
       // Confetti: plays only on win
       if (won) {

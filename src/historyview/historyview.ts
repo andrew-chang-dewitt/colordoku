@@ -422,7 +422,10 @@ export function newHistoryView({
       }
 
       render();
-      if (!html.open) html.showModal();
+      if (!html.open) {
+        html.showModal();
+        closeButton.focus();
+      }
 
       if (focusEntryId !== undefined) {
         const target = list.querySelector<HTMLLIElement>(

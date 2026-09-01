@@ -84,4 +84,12 @@ describe("preferences drawer", () => {
     checkbox.dispatchEvent(new Event("change"));
     expect(prefs.get()).toEqual({ autoEliminate: true });
   });
+
+  it("moves focus to the Done button on open", () => {
+    const prefs = newPreferences();
+    document.body.append(prefs.html);
+    prefs.open();
+    const doneButton = prefs.html.querySelector("button") as HTMLButtonElement;
+    expect(document.activeElement).toBe(doneButton);
+  });
 });

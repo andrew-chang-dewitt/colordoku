@@ -377,7 +377,10 @@ export function newScoreView({ getEntries = getHistory, onViewInHistory }: Score
 
     open() {
       render();
-      if (!html.open) html.showModal();
+      if (!html.open) {
+        html.showModal();
+        closeButton.focus();
+      }
     },
 
     close() {

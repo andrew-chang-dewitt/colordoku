@@ -159,4 +159,22 @@ describe("newGameOver", () => {
 
     expect(gameOver.confettiHtml.children.length).toBe(0);
   });
+
+  it("moves focus to 'New game, same size' on open (win)", () => {
+    const { gameOver } = mount();
+    gameOver.show({ state: 1, elapsedMs: 0, score: 1000, size: 4, weeklyScore: 1000 });
+    const newGameButton = [...gameOver.html.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("New game"),
+    )!;
+    expect(document.activeElement).toBe(newGameButton);
+  });
+
+  it("moves focus to 'New game, same size' on open (loss, where 'Try again' is also visible)", () => {
+    const { gameOver } = mount();
+    gameOver.show({ state: 2, elapsedMs: 0, score: 0, size: 4, weeklyScore: 0 });
+    const newGameButton = [...gameOver.html.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("New game"),
+    )!;
+    expect(document.activeElement).toBe(newGameButton);
+  });
 });
