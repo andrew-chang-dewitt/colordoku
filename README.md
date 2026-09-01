@@ -207,7 +207,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
   - [x] fix placement (now inline w/ new game button in the same `#below-board`
         row)
 - [x] #help help button to view game rules & some strategy tips
-- [/] #help skippable new user tutorial via a guided first game where modals
+- [x] #help skippable new user tutorial via a guided first game where modals
       appear pointing to cells/regions/UI elements explaining the following things
       (plan: `docs/plans/help.md`)
   - [x] first: how to access user profile & mentioning that's where to go to
@@ -219,11 +219,11 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
         beginning strategy tips
   - [x] automatically give a fixed score boost for completion (not tied to time)
   - [x] finally: point out help button & replay affordance at end of tutorial
-- [/] #user-score calculate some sort of "score" value based on board size, difficulty, &
+- [x] #user-score calculate some sort of "score" value based on board size, difficulty, &
   completion time
   - [x] determine how to score losses (are they negative? no score at all?
         number of attempts to reach a win influences score?)
-  - [/] track cumulative score over time ranges (today, this week, this month,
+  - [x] track cumulative score over time ranges (today, this week, this month,
         this year, all time) for local user history — weekly totals & an
         all-time total are done (`persistence/weeklyScore.ts`, derived from
         history rather than stored separately), surfaced in the history
@@ -243,8 +243,8 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     - [x] game history
     - [x] user preferences
     - [x] leaderboard (if opted in)
-- [ ] user preferences to control
-  - [ ] #auto-eliminate auto-eliminate row/column/region/adjacent cells when a queen is correctly guessed, toggleable in a new preferences drawer (default off) (plan: `docs/plans/auto-eliminate.md`)
+- [/] user preferences to control
+  - [x] #auto-eliminate auto-eliminate row/column/region/adjacent cells when a queen is correctly guessed, toggleable in a new preferences drawer (default off) (plan: `docs/plans/auto-eliminate.md`)
   - [ ] if opted into leaderboard
   - [ ] clear local state
 - [x] #history game history persistence - store history of games played in localstate
@@ -297,7 +297,7 @@ instant. sizes at or above 14 get an elapsed timer and a cancel button.
     will need to investigate what that critical mass may look like & how to
     tell if it's been achieved.
 - [x] #undo undo button (can't undo placing queens or incorrect guesses) — marks only; a committed guess (queen or wrong) is permanent (plan: docs/plans/undo.md)
-- [ ] option in preferences to auto  eliminate columns, rows, & neighbors on correct queen placement (defaults to off)
+- [x] option in preferences to auto  eliminate columns, rows, & neighbors on correct queen placement (defaults to off)
 - [x] BUG: share link isn't including difficulty setting
 - [x] BUG: time to complete doesn't appear to factor onto score — a faster completion time should give a higher score than a slower one
 - [ ] add ui to HUD that indicates how many queens have been found out of total
