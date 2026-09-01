@@ -141,7 +141,7 @@ export function newUndoButton(undo: UndoStack): HTMLButtonElement {
   button.type = "button";
   button.id = "undo";
   button.className = "btn btn-secondary";
-  button.title = "Undo last mark (Ctrl+Z)";
+  button.title = "Undo last mark (Ctrl+Z / U)";
   button.setAttribute("aria-label", "Undo last elimination mark");
   button.disabled = !undo.canUndo();
 

@@ -624,12 +624,13 @@ export function attachAutoEliminate(
 /**
  * Wires up keyboard navigation for the board using the native DOM Focus API:
  * movement with arrow/WASD/vim keys (updates focus), X to toggle marks, Q to commit guesses,
- * Shift+direction for range selection, Escape/M to leave the board, and ? to open help.
+ * Shift+direction for range selection, Escape/M to leave the board, ? to open help, and
+ * Ctrl+Z/Cmd+Z/U to undo.
  *
  * Split across two listeners:
  * - Board-scoped (`handleBoardKeyDown` on the board element): movement/X/Q/Escape/M keys
  *   fire only when a cell has focus. Movement updates focus; X/Q act on the focused cell.
- * - Document-scoped (`handleGlobalKeyDown` on document): ? (help) and Ctrl+Z/Cmd+Z (undo)
+ * - Document-scoped (`handleGlobalKeyDown` on document): ? (help) and Ctrl+Z/Cmd+Z/U (undo)
  *   are app-global shortcuts, unaffected by which element is focused.
  *
  * The focused cell's CSS `:focus-visible` pseudo-class renders a keyboard indicator ring
@@ -827,6 +828,14 @@ export function attachKeyboardNavigation(
     // Ctrl+Z / Cmd+Z - undo
     if ((event.ctrlKey || event.metaKey) && (event.key === "z" || event.key === "Z")) {
       if (event.shiftKey) return; // no redo — leave Ctrl+Shift+Z alone
+      event.preventDefault();
+      undo?.undo();
+      return;
+    }
+
+    // U - alternate undo trigger. Same gating as Ctrl+Z/Cmd+Z above
+    // (dialog-open, game-ended, form-focused).
+    if (event.key === "u" || event.key === "U") {
       event.preventDefault();
       undo?.undo();
       return;
